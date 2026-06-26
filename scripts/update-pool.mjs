@@ -21,6 +21,25 @@ const HEADERS = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Fetch JSON, retrying on 429 (rate limit) and 5xx with exponential backoff.
+// Scryfall asks for ~100ms between requests; the full Standard pool is ~27
+// pages, so transient 429s are expected and must be retried, not fatal.
+async function fetchJson(url, attempt = 0) {
+  const res = await fetch(url, { headers: HEADERS });
+  if (res.status === 429 || res.status >= 500) {
+    if (attempt >= 6) {
+      throw new Error(`Scryfall ${res.status} after ${attempt} retries`);
+    }
+    const retryAfter = Number(res.headers.get('retry-after')) || 0;
+    const backoffMs = Math.max(retryAfter * 1000, 750 * 2 ** attempt);
+    process.stdout.write(`\n  ${res.status} — backing off ${backoffMs}ms (retry ${attempt + 1})\n`);
+    await sleep(backoffMs);
+    return fetchJson(url, attempt + 1);
+  }
+  if (!res.ok) throw new Error(`Scryfall ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
 const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
 const onlyColors = (arr) => (arr ?? []).filter((c) => COLORS.has(c));
 
@@ -71,13 +90,11 @@ async function fetchAll() {
   let page = 0;
   while (url) {
     page += 1;
-    const res = await fetch(url, { headers: HEADERS });
-    if (!res.ok) throw new Error(`Scryfall ${res.status} ${res.statusText} on page ${page}`);
-    const json = await res.json();
+    const json = await fetchJson(url);
     for (const card of json.data) cards.push(card);
     process.stdout.write(`\rFetched page ${page} (${cards.length}/${json.total_cards})`);
     url = json.has_more ? json.next_page : null;
-    if (url) await sleep(100); // be polite to Scryfall
+    if (url) await sleep(200); // be polite to Scryfall (~5 req/s)
   }
   process.stdout.write('\n');
   return cards;

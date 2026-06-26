@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useEscape } from '../lib/useEscape';
 import { ManaCost } from './common';
@@ -7,11 +7,16 @@ export function CardPreview() {
   const card = useStore((s) => s.previewCard);
   const setPreviewCard = useStore((s) => s.setPreviewCard);
   useEscape(() => setPreviewCard(null));
-  const [imgFailed, setImgFailed] = useState(false);
+  // Try the large image first; on error fall back to the normal one, then text.
+  const [stage, setStage] = useState(0);
+  // Reset the fallback stage each time a different card is opened.
+  useEffect(() => setStage(0), [card?.id]);
   if (!card) return null;
 
-  const src = card.imageLarge ?? card.image;
-  const showImage = src && !imgFailed;
+  const candidates = [card.imageLarge, card.image].filter(Boolean) as string[];
+  const src = candidates[stage];
+  const showImage = !!src;
+  const onImgError = () => setStage((s) => s + 1);
 
   return (
     <div
@@ -26,9 +31,10 @@ export function CardPreview() {
         {showImage && (
           <div className="card-frame mx-auto w-full max-w-xs shrink-0 self-center">
             <img
-              src={src!}
+              key={src}
+              src={src}
               alt={card.name}
-              onError={() => setImgFailed(true)}
+              onError={onImgError}
               className="w-full"
             />
           </div>
