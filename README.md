@@ -91,6 +91,20 @@ import-accurate Marvel Super Heroes cards and the complete pool.
 > for the live, import-verified pool. The pool badge in the app shows whether
 > the current data is `scryfall` or `fallback`.
 
+## Run it on your phone (GitHub Pages)
+
+The app is a static site, so GitHub can host it for free and you open it on your
+phone like any web app. Two workflows in `.github/workflows/` handle this:
+
+- **`deploy.yml`** — builds and publishes the site to GitHub Pages on every push
+  (and on demand from the Actions tab).
+- **`update-pool.yml`** — every day, re-fetches the current Standard + Arena pool
+  from Scryfall, commits it if it changed, and redeploys — so the live site
+  stays current through rotations and new set releases automatically. You can
+  also trigger it manually on a set's release day.
+
+See the step-by-step setup at the bottom of this file.
+
 ## How the multi-deck generator works
 
 The meaningful difference between two real decks is their **synergy package**,
@@ -174,3 +188,41 @@ src/
   components/          # card grid, filters, generator, deck view, modals
   data/                # bundled pool JSON (generated)
 ```
+
+## Step-by-step: launch on your phone via GitHub
+
+Everything below can be done from your phone's browser on github.com.
+
+**One-time setup (≈3 minutes):**
+
+1. **Make sure the repo is public** (required for free GitHub Pages).
+   Repo → **Settings** → **General** → scroll to **Danger Zone** → *Change
+   visibility* → **Public** if it isn't already. (Private repos need a paid
+   plan for Pages.)
+2. **Allow Actions to write** (needed for the daily pool auto-update).
+   **Settings** → **Actions** → **General** → *Workflow permissions* →
+   choose **Read and write permissions** → **Save**.
+3. **Turn on Pages.** **Settings** → **Pages** → under *Build and deployment* →
+   **Source** → select **GitHub Actions**.
+4. **Run the deploy.** Open the **Actions** tab → pick **Deploy to GitHub
+   Pages** → **Run workflow** (choose the `claude/magic-deck-builder-algo-mxr2tz`
+   branch) → wait for the green check. (It also runs automatically on every
+   push.)
+5. **Open your site.** Your URL is:
+   ```
+   https://knyt2k66sb-star.github.io/mtga-builder/
+   ```
+   Open it in your phone's browser.
+
+**Add it to your home screen (so it launches like an app):**
+
+- **iPhone (Safari):** tap the **Share** icon → **Add to Home Screen** → **Add**.
+- **Android (Chrome):** tap the **⋮** menu → **Add to Home screen** → **Add**.
+
+You'll get an MTGA Builder icon that opens full-screen.
+
+**Refreshing the card pool:**
+
+- It refreshes **automatically every day**. To pull a brand-new set the moment
+  it's out, go to **Actions** → **Update card pool** → **Run workflow**. When it
+  finishes, the live site (and your home-screen app) shows the new cards.

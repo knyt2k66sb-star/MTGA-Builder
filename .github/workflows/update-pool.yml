@@ -1,0 +1,57 @@
+name: Update card pool
+
+# Refreshes the Standard + Arena card pool from Scryfall, commits it if it
+# changed, and redeploys the site. Runs daily (so new sets/rotations are picked
+# up automatically) and can be triggered manually on a set's release day.
+on:
+  schedule:
+    - cron: '0 11 * * *' # every day at 11:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to commit the refreshed pool
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Refresh Standard pool from Scryfall
+        run: npm run update-pool
+
+      - name: Commit refreshed pool if it changed
+        run: |
+          if [[ -n "$(git status --porcelain src/data)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add src/data/standard-pool.json src/data/pool-meta.json
+            git commit -m "chore: refresh Standard card pool from Scryfall"
+            git push
+            echo "Pool updated."
+          else
+            echo "Pool unchanged — nothing to commit."
+          fi
+
+      # Rebuild and redeploy with the freshly fetched pool.
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
