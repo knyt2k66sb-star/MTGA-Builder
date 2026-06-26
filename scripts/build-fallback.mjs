@@ -243,6 +243,20 @@ const defs = [
   { n: 'Third Path Iconoclast', m: '{U}{R}', t: 'Creature — Human Artificer', o: 'Prowess. Whenever you cast a noncreature spell, create a 1/1 colorless Soldier artifact creature token.', p: '1', tough: '2', k: ['Prowess'], r: 700, set: 'BRO', num: 230, ci: ['U', 'R'] },
   { n: 'Electrostatic Infantry', m: '{1}{R}', t: 'Creature — Dwarf Soldier', o: 'Trample. Whenever you cast an instant or sorcery spell, put a +1/+1 counter on Electrostatic Infantry.', p: '1', tough: '2', k: ['Trample'], r: 1300, set: 'DMU', num: 132 },
   { n: 'Symmetry Sage', m: '{1}{U}', t: 'Creature — Human Wizard', o: 'Prowess. As long as you\'ve cast two or more spells this turn, Symmetry Sage has flying.', p: '1', tough: '3', k: ['Prowess'], r: 1700, set: 'DMU', num: 73 },
+
+  // ============================================================
+  // MARVEL SUPER HEROES (MSH) — newest Standard set (released 2026-06-26).
+  // ILLUSTRATIVE PLACEHOLDERS so the offline sample includes the set; run
+  // `npm run update-pool` for the real, import-accurate MSH cards from Scryfall.
+  // ============================================================
+  { n: 'Spider-Man, Friendly Neighbor', m: '{1}{G}{W}', t: 'Legendary Creature — Hero Spider', o: 'Reach, vigilance. Whenever Spider-Man attacks, create a Web token that taps target creature.', p: '3', tough: '3', k: ['Reach', 'Vigilance'], r: 220, set: 'MSH', num: 1, ci: ['G', 'W'] },
+  { n: 'Iron Man, Armored Avenger', m: '{3}{R}', t: 'Legendary Artifact Creature — Hero', o: 'Flying, first strike. Whenever an artifact you control enters, Iron Man deals 1 damage to any target.', p: '4', tough: '4', k: ['Flying', 'First strike'], r: 200, set: 'MSH', num: 2 },
+  { n: 'Captain America, First Avenger', m: '{2}{W}', t: 'Legendary Creature — Hero Soldier', o: 'Vigilance, lifelink. Other creatures you control get +1/+1.', p: '3', tough: '3', k: ['Vigilance', 'Lifelink'], r: 180, set: 'MSH', num: 3 },
+  { n: 'Thor, God of Thunder', m: '{3}{R}{R}', t: 'Legendary Creature — God Hero', o: 'Flying, haste. When Thor enters, it deals 4 damage divided as you choose among any number of targets.', p: '5', tough: '5', k: ['Flying', 'Haste'], r: 150, set: 'MSH', num: 4 },
+  { n: 'Hulk, Strongest There Is', m: '{3}{G}{G}', t: 'Legendary Creature — Hero Mutant', o: 'Trample. Whenever Hulk is dealt damage, put that many +1/+1 counters on it.', p: '6', tough: '6', k: ['Trample'], r: 240, set: 'MSH', num: 5 },
+  { n: 'Doctor Strange, Sorcerer Supreme', m: '{2}{U}{U}', t: 'Legendary Creature — Hero Wizard', o: 'When Doctor Strange enters, draw two cards. {2}{U}: Counter target activated or triggered ability.', p: '3', tough: '4', r: 260, set: 'MSH', num: 6 },
+  { n: 'Black Panther, King of Wakanda', m: '{1}{B}{G}', t: 'Legendary Creature — Hero Noble', o: 'Deathtouch, menace. Whenever Black Panther deals combat damage to a player, create a Treasure token.', p: '3', tough: '3', k: ['Deathtouch', 'Menace'], r: 300, set: 'MSH', num: 7, ci: ['B', 'G'] },
+  { n: 'Storm, Mistress of Elements', m: '{2}{U}', t: 'Legendary Creature — Hero Mutant', o: 'Flying. Whenever you cast an instant or sorcery, Storm deals 2 damage to each opponent.', p: '2', tough: '3', k: ['Flying'], r: 420, set: 'MSH', num: 8 },
 ];
 
 function main() {
