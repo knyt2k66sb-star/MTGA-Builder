@@ -18,7 +18,7 @@ export function CardTile({
     <button
       type="button"
       onClick={onClick}
-      className="group relative block w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900 text-left transition-transform hover:-translate-y-0.5 hover:border-indigo-500"
+      className="card-frame group relative block w-full text-left transition-all duration-150 hover:-translate-y-1 hover:shadow-[0_0_18px_rgba(217,178,76,0.45)]"
       title={card.name}
     >
       {showImage ? (
@@ -30,22 +30,24 @@ export function CardTile({
           className="aspect-[5/7] w-full object-cover"
         />
       ) : (
-        <div className="flex aspect-[5/7] w-full flex-col justify-between bg-gradient-to-br from-slate-800 to-slate-900 p-2">
+        <div className="parchment flex aspect-[5/7] w-full flex-col justify-between rounded-none p-2">
           <div className="flex items-start justify-between gap-1">
-            <span className="text-xs font-semibold leading-tight">{card.name}</span>
+            <span className="font-serif text-xs font-semibold leading-tight">{card.name}</span>
             <ManaCost cost={card.manaCost} />
           </div>
-          <div className="text-[10px] text-slate-400">{card.typeLine}</div>
-          <div className="line-clamp-4 text-[9px] leading-snug text-slate-500">{card.oracleText}</div>
+          <div className="border-y border-gold-700/40 py-0.5 font-serif text-[10px] italic text-ink/80">
+            {card.typeLine}
+          </div>
+          <div className="line-clamp-5 font-serif text-[9px] leading-snug text-ink/70">{card.oracleText}</div>
           {card.power != null && (
-            <div className="self-end text-xs font-bold text-slate-300">
+            <div className="self-end font-display text-xs font-bold text-ink">
               {card.power}/{card.toughness}
             </div>
           )}
         </div>
       )}
       {badge && (
-        <span className="absolute right-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="absolute right-1 top-1 rounded bg-gold-600 px-1.5 py-0.5 text-[10px] font-bold text-wood-950">
           {badge}
         </span>
       )}

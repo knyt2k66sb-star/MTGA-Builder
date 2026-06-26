@@ -34,6 +34,7 @@ export function makeBasicLand(color: Color): Card {
     arenaId: null,
     layout: 'normal',
     image: null,
+    imageLarge: null,
     legalStandard: true,
     legalBrawl: true,
   };

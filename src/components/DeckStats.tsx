@@ -8,18 +8,18 @@ export function ManaCurve({ curve }: { curve: Record<string, number> }) {
   const max = Math.max(1, ...CURVE_BUCKETS.map((b) => curve[b] ?? 0));
   return (
     <div>
-      <div className="mb-1 text-xs text-slate-400">Mana curve</div>
+      <div className="mb-1 text-xs text-parchment-400">Mana curve</div>
       <div className="flex items-end gap-1.5" style={{ height: 64 }}>
         {CURVE_BUCKETS.map((b) => {
           const v = curve[b] ?? 0;
           return (
             <div key={b} className="flex flex-1 flex-col items-center justify-end">
-              <span className="text-[10px] text-slate-400">{v}</span>
+              <span className="text-[10px] text-parchment-400">{v}</span>
               <div
-                className="w-full rounded-t bg-indigo-500"
+                className="w-full rounded-t bg-gradient-to-t from-gold-700 to-gold-400"
                 style={{ height: `${(v / max) * 44}px` }}
               />
-              <span className="mt-0.5 text-[10px] text-slate-500">{b}</span>
+              <span className="mt-0.5 text-[10px] text-parchment-500">{b}</span>
             </div>
           );
         })}
@@ -32,8 +32,8 @@ export function ColorPie({ pips }: { pips: Record<Color, number> }) {
   const total = COLORS.reduce((s, c) => s + pips[c], 0) || 1;
   return (
     <div>
-      <div className="mb-1 text-xs text-slate-400">Color requirements (pips)</div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-800">
+      <div className="mb-1 text-xs text-parchment-400">Color requirements (pips)</div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-wood-800 ring-1 ring-gold-800/40">
         {COLORS.map((c) =>
           pips[c] > 0 ? (
             <div
@@ -64,8 +64,8 @@ export function RoleBreakdown({ diag }: { diag: DeckDiagnostics }) {
     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
       {rows.map(([label, n]) => (
         <div key={label} className="flex justify-between">
-          <span className="text-slate-400">{label}</span>
-          <span className="font-mono text-slate-200">{n}</span>
+          <span className="text-parchment-400">{label}</span>
+          <span className="font-display text-parchment-100">{n}</span>
         </div>
       ))}
     </div>

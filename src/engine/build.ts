@@ -1,5 +1,6 @@
-import type { Card, Color } from '../types/card';
+import type { Archetype, Card, Color } from '../types/card';
 import {
+  ARCHETYPES,
   COLORS,
   canBeCommander,
   cmcBucket,
@@ -13,6 +14,9 @@ import type {
   DeckDiagnostics,
   GenParams,
   GenerationResult,
+  MultiGenParams,
+  RankedDeck,
+  ViabilityBreakdown,
 } from '../types/deck';
 import { mulberry32 } from '../lib/prng';
 import { aggregatePips } from '../lib/mana';
@@ -25,8 +29,17 @@ import {
 import { baseScore, defaultWeights, qualityScore } from './scoring';
 import { buildManaBase, makeBasicLand } from './manabase';
 import { detectRoles } from './heuristics';
+import {
+  colorLabel,
+  synergyContribution,
+  viableThemes,
+  type Theme,
+} from './themes';
 
 const FORMAT_TOTAL = 60; // Standard and Standard Brawl are both 60 (Brawl incl. commander).
+export const VIABILITY_THRESHOLD = 45; // decks scoring below this are hidden
+export const MAX_RESULTS = 50;
+const THEME_WEIGHT = 1.6; // how strongly synergy biases card selection
 
 function uid(seed: number): string {
   return `deck-${seed.toString(36)}-${Date.now().toString(36)}`;
@@ -57,10 +70,14 @@ function selectSpells(
   spellSlots: number,
   singleton: boolean,
   powerBias: number,
+  theme?: Theme,
 ): SpellSelection {
   const weights = defaultWeights(powerBias);
   const scored = candidates
-    .map((card) => ({ card, score: baseScore(card, profile, colors, weights) }))
+    .map((card) => {
+      const themeBoost = theme ? THEME_WEIGHT * theme.detect(card) : 0;
+      return { card, score: baseScore(card, profile, colors, weights) + themeBoost };
+    })
     .sort((a, b) => b.score - a.score);
 
   // Target counts per curve bucket and per creature/noncreature split.
@@ -124,7 +141,11 @@ function selectSpells(
   return { entries, warnings };
 }
 
-export function generateDeck(params: GenParams, pool: Card[]): GenerationResult {
+export function generateDeck(
+  params: GenParams,
+  pool: Card[],
+  theme?: Theme,
+): GenerationResult {
   const seed = params.seed ?? Math.floor(Math.random() * 2 ** 31);
   const rng = mulberry32(seed);
   const warnings: string[] = [];
@@ -138,7 +159,7 @@ export function generateDeck(params: GenParams, pool: Card[]): GenerationResult 
   let colors: Color[];
 
   if (params.format === 'brawl') {
-    commander = resolveCommander(params, pool, rng);
+    commander = resolveCommander(params, pool, rng, theme);
     if (!commander) {
       throw new Error('No legal commander available in the chosen colors.');
     }
@@ -181,6 +202,7 @@ export function generateDeck(params: GenParams, pool: Card[]): GenerationResult 
     spellSlots,
     singleton,
     params.powerBias ?? 0.5,
+    theme,
   );
   warnings.push(...spellWarnings);
 
@@ -193,7 +215,7 @@ export function generateDeck(params: GenParams, pool: Card[]): GenerationResult 
   const now = new Date().toISOString();
   const deck: Deck = {
     id: uid(seed),
-    name: defaultDeckName(params, colors, commander),
+    name: defaultDeckName(params, colors, commander, theme),
     format: params.format,
     commander,
     main,
@@ -212,6 +234,7 @@ function resolveCommander(
   params: GenParams,
   pool: Card[],
   rng: () => number,
+  theme?: Theme,
 ): Card | null {
   if (params.commanderId) {
     const found = pool.find((c) => c.oracleId === params.commanderId);
@@ -227,7 +250,11 @@ function resolveCommander(
           c.colorIdentity.every((ci) => wanted.has(ci)) &&
           c.colorIdentity.length >= Math.min(wanted.size, 1),
     )
-    .sort((a, b) => qualityScore(b) - qualityScore(a));
+    // Prefer commanders that themselves advance the theme, then raw quality.
+    .sort((a, b) => {
+      const t = theme ? theme.detect(b) - theme.detect(a) : 0;
+      return t !== 0 ? t : qualityScore(b) - qualityScore(a);
+    });
   if (eligible.length === 0) return null;
   // Pick from the top few for a little variety across seeds.
   const top = eligible.slice(0, Math.min(5, eligible.length));
@@ -259,15 +286,19 @@ function reconcileCount(main: DeckEntry[], target: number, colors: Color[]): voi
   }
 }
 
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function defaultDeckName(
   params: GenParams,
   colors: Color[],
   commander: Card | null,
+  theme?: Theme,
 ): string {
-  if (commander) return `${commander.name} Brawl`;
-  const col = colors.join('') || 'Colorless';
-  const arch = params.archetype.charAt(0).toUpperCase() + params.archetype.slice(1);
-  return `${col} ${arch}`;
+  const themePart = theme && theme.id !== 'goodstuff' ? `${theme.name} ` : '';
+  if (commander) return `${commander.name} — ${themePart}Brawl`.replace(' — Brawl', ' Brawl');
+  return `${colorLabel(colors)} ${themePart}${titleCase(params.archetype)}`.replace(/\s+/g, ' ').trim();
 }
 
 export function diagnose(deck: Deck, warnings: string[] = []): DeckDiagnostics {
@@ -303,4 +334,177 @@ export function diagnose(deck: Deck, warnings: string[] = []): DeckDiagnostics {
     roleBreakdown,
     warnings,
   };
+}
+
+// ===========================================================================
+// Multi-deck synergy generation
+// ===========================================================================
+
+/** Distance of a deck's curve from the archetype target (0 = perfect). */
+function curveDistance(deck: Deck, profile: ArchetypeProfile): number {
+  const nonland = deck.main.filter((e) => !isLand(e.card));
+  const total = nonland.reduce((s, e) => s + e.qty, 0) || 1;
+  const actual: Record<string, number> = { '0-1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6+': 0 };
+  for (const e of nonland) actual[cmcBucket(e.card.cmc)] += e.qty;
+  let dist = 0;
+  for (const b of CURVE_BUCKETS) dist += Math.abs(actual[b] / total - profile.curve[b]);
+  return dist / 2; // 0..1
+}
+
+/** Fraction of deck colors that have a reasonable number of mana sources. */
+function manaSoundness(deck: Deck, colors: Color[]): number {
+  if (colors.length === 0) return 1;
+  const sources: Record<Color, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  for (const e of deck.main) {
+    if (!isLand(e.card)) continue;
+    for (const m of e.card.producedMana) if ((colors as string[]).includes(m)) sources[m as Color] += e.qty;
+  }
+  const adequate = colors.filter((c) => sources[c] >= 4).length;
+  return adequate / colors.length;
+}
+
+function computeViability(
+  deck: Deck,
+  profile: ArchetypeProfile,
+  theme: Theme,
+  colors: Color[],
+): { viability: number; breakdown: ViabilityBreakdown } {
+  const nonland = deck.main.filter((e) => !isLand(e.card));
+  const nonlandCount = nonland.reduce((s, e) => s + e.qty, 0) || 1;
+
+  // Synergy density: average theme contribution per nonland card, normalized.
+  const synergy = synergyContribution(theme, nonland) / nonlandCount;
+  const synergyDensity = Math.min(1, synergy / 1.6);
+
+  const quality =
+    nonland.reduce((s, e) => s + qualityScore(e.card) * e.qty, 0) / nonlandCount;
+
+  const curveFit = 1 - Math.min(1, curveDistance(deck, profile));
+  const mana = manaSoundness(deck, colors);
+
+  const breakdown: ViabilityBreakdown = {
+    synergyDensity,
+    quality,
+    curveFit,
+    manaSoundness: mana,
+  };
+  const viability =
+    100 * (0.45 * synergyDensity + 0.3 * quality + 0.15 * curveFit + 0.1 * mana);
+  return { viability, breakdown };
+}
+
+/** Jaccard similarity of two decks by oracleId multiset of nonland cards. */
+function deckSimilarity(a: Deck, b: Deck): number {
+  const setOf = (d: Deck) => new Set(d.main.filter((e) => !isBasicLand(e.card)).map((e) => e.card.oracleId));
+  const sa = setOf(a);
+  const sb = setOf(b);
+  let inter = 0;
+  for (const id of sa) if (sb.has(id)) inter++;
+  const union = sa.size + sb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+/**
+ * Generate every viable deck for a color/format combo: one per
+ * (archetype × synergy theme), scored for viability, filtered, deduped and
+ * ranked. This is the headline multi-deck generator.
+ */
+export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[] {
+  const colors =
+    params.colors.length > 0 ? params.colors : deriveColors(pool);
+
+  // Themes are detected from the color-relevant slice of the pool.
+  const colorPool = pool.filter((c) =>
+    params.format === 'brawl'
+      ? c.colorIdentity.every((ci) => colors.includes(ci))
+      : c.colors.every((ci) => colors.includes(ci)),
+  );
+  const themes = viableThemes(colorPool);
+
+  const archetypes: Archetype[] =
+    params.archetype && params.archetype !== 'any'
+      ? [params.archetype]
+      : ARCHETYPES;
+
+  const ranked: RankedDeck[] = [];
+
+  for (const archetype of archetypes) {
+    const profile =
+      params.format === 'brawl'
+        ? brawlAdjust(ARCHETYPE_PROFILES[archetype])
+        : ARCHETYPE_PROFILES[archetype];
+
+    for (const theme of themes) {
+      // Skip theme/archetype pairs that obviously clash unless it's goodstuff.
+      if (
+        theme.id !== 'goodstuff' &&
+        !theme.archetypeLean.includes(archetype)
+      ) {
+        continue;
+      }
+
+      // Deterministic seed per combo for reproducibility.
+      const seed = hashSeed(`${params.format}|${colors.join('')}|${archetype}|${theme.id}`);
+      const single: GenParams = {
+        format: params.format,
+        archetype,
+        colors,
+        commanderId: params.commanderId ?? null,
+        powerBias: params.powerBias ?? 0.5,
+        seed,
+      };
+
+      let result;
+      try {
+        result = generateDeck(single, pool, theme);
+      } catch {
+        continue; // e.g. no legal commander for this color combo
+      }
+      const { deck, diagnostics } = result;
+
+      // Did the synergy actually materialize? (goodstuff is exempt.)
+      const themeCards = deck.main.filter((e) => !isLand(e.card) && theme.detect(e.card) >= 1.5);
+      const themeCount = themeCards.reduce((s, e) => s + e.qty, 0);
+      if (theme.id !== 'goodstuff' && themeCount < 6) continue;
+
+      const { viability, breakdown } = computeViability(deck, profile, theme, deck.colors);
+      if (viability < VIABILITY_THRESHOLD) continue;
+
+      const synergyCards = themeCards
+        .sort((a, b) => theme.detect(b.card) - theme.detect(a.card))
+        .slice(0, 6)
+        .map((e) => e.card.name);
+
+      ranked.push({
+        deck,
+        diagnostics,
+        viability: Math.round(viability),
+        themeId: theme.id,
+        themeName: theme.name,
+        archetype,
+        synergyCards,
+        breakdown,
+      });
+    }
+  }
+
+  // Rank best-first, then dedupe near-identical decks (keep higher score).
+  ranked.sort((a, b) => b.viability - a.viability);
+  const kept: RankedDeck[] = [];
+  for (const r of ranked) {
+    if (kept.some((k) => deckSimilarity(k.deck, r.deck) > 0.8)) continue;
+    kept.push(r);
+    if (kept.length >= (params.maxResults ?? MAX_RESULTS)) break;
+  }
+  return kept;
+}
+
+/** Stable string hash -> 31-bit seed. */
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 2 ** 31;
 }

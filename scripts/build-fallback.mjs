@@ -76,6 +76,7 @@ function mk(d) {
     arenaId: arenaSeq++,
     layout: d.layout ?? 'normal',
     image: `https://api.scryfall.com/cards/named?format=image&version=normal&exact=${encodeURIComponent(d.n)}`,
+    imageLarge: `https://api.scryfall.com/cards/named?format=image&version=large&exact=${encodeURIComponent(d.n)}`,
     legalStandard: true,
     legalBrawl: d.banBrawl ? false : true,
   };
@@ -181,6 +182,67 @@ const defs = [
   { n: 'Brushland', m: '', t: 'Land', o: '{T}: Add {C}. {T}, lose 1 life: Add {G} or {W}.', prod: ['G', 'W'], r: 1480, set: 'DMU', num: 248, rar: 'rare' },
   { n: 'Adarkar Wastes', m: '', t: 'Land', o: '{T}: Add {C}. {T}, lose 1 life: Add {W} or {U}.', prod: ['W', 'U'], r: 1490, set: 'DMU', num: 247, rar: 'rare' },
   { n: 'Caves of Koilos', m: '', t: 'Land', o: '{T}: Add {C}. {T}, lose 1 life: Add {W} or {B}.', prod: ['W', 'B'], r: 1495, set: 'DMU', num: 249, rar: 'rare' },
+
+  // ============================================================
+  // SYNERGY CLUSTERS (so the gallery shows several distinct decks)
+  // ============================================================
+
+  // ---- Goblins (R tribal) ----
+  { n: 'Goblin Chieftain', m: '{1}{R}{R}', t: 'Creature — Goblin', o: 'Haste. Other Goblin creatures you control get +1/+1 and have haste.', p: '2', tough: '2', k: ['Haste'], r: 700, set: 'FDN', num: 140 },
+  { n: 'Legion Loyalist', m: '{R}', t: 'Creature — Goblin Soldier', o: 'Whenever Legion Loyalist attacks, if you control three or more attacking creatures, creatures you control gain first strike and trample.', p: '1', tough: '1', k: ['Haste'], r: 1300, set: 'FDN', num: 141 },
+  { n: 'Goblin Instigator', m: '{1}{R}', t: 'Creature — Goblin', o: 'When Goblin Instigator enters, create a 1/1 red Goblin creature token.', p: '1', tough: '1', r: 1600, set: 'FDN', num: 142 },
+  { n: 'Goblin Trashmaster', m: '{2}{R}{R}', t: 'Creature — Goblin', o: 'Other Goblins you control get +1/+1. Sacrifice a Goblin: Destroy target artifact.', p: '3', tough: '3', r: 1900, set: 'FDN', num: 143 },
+  { n: 'Krenko, Tin Street Kingpin', m: '{2}{R}', t: 'Legendary Creature — Goblin', o: 'Whenever Krenko attacks, create that many 1/1 red Goblin creature tokens.', p: '3', tough: '3', r: 450, set: 'FDN', num: 144 },
+  { n: 'Goblin Warchief', m: '{1}{R}{R}', t: 'Creature — Goblin Warrior', o: 'Goblin spells you cast cost {1} less. Goblins you control have haste.', p: '2', tough: '2', k: ['Haste'], r: 900, set: 'FDN', num: 145 },
+  { n: 'Munitions Expert', m: '{1}{R}', t: 'Creature — Goblin', o: 'When Munitions Expert enters, if you control another Goblin, it deals 2 damage to any target.', p: '2', tough: '2', r: 1200, set: 'FDN', num: 146 },
+
+  // ---- Elves (G tribal) ----
+  { n: 'Elvish Archdruid', m: '{1}{G}{G}', t: 'Creature — Elf Druid', o: 'Other Elves you control get +1/+1. {T}: Add {G} for each Elf you control.', p: '2', tough: '2', prod: ['G'], r: 800, set: 'FDN', num: 172 },
+  { n: 'Imperious Perfect', m: '{2}{G}', t: 'Creature — Elf Warrior', o: 'Other Elves you control get +1/+1. {T}: Create a 1/1 green Elf Warrior creature token.', p: '2', tough: '2', r: 850, set: 'FDN', num: 173 },
+  { n: 'Llanowar Visionary', m: '{2}{G}', t: 'Creature — Elf Druid', o: 'When Llanowar Visionary enters, draw a card. {T}: Add {G}.', p: '2', tough: '2', prod: ['G'], r: 1400, set: 'DMU', num: 169 },
+  { n: 'Elvish Warmaster', m: '{1}{G}', t: 'Creature — Elf Warrior', o: 'When Elvish Warmaster enters, create two 1/1 green Elf Warrior tokens. Other Elves you control get +1/+1.', p: '1', tough: '1', r: 950, set: 'FDN', num: 174 },
+  { n: 'Leaf-Crowned Visionary', m: '{1}{G}', t: 'Creature — Elf Advisor', o: 'Other Elves you control get +1/+1. {G}, {T}: Look at the top card; if it\'s an Elf you may reveal and draw it.', p: '2', tough: '2', r: 1100, set: 'FDN', num: 175 },
+  { n: 'Realmwalker', m: '{2}{G}', t: 'Creature — Shapeshifter', o: 'Changeling. Play with the top card of your library revealed. You may cast Elf spells from the top of your library.', p: '2', tough: '3', r: 1000, set: 'KHM', num: 197 },
+
+  // ---- +1/+1 counters (G/GW) ----
+  { n: 'Conclave Mentor', m: '{G}{W}', t: 'Creature — Centaur Cleric', o: 'If one or more +1/+1 counters would be put on a creature you control, that many plus one are put on it instead.', p: '1', tough: '1', r: 600, set: 'M21', num: 215, ci: ['G', 'W'] },
+  { n: 'Hardened Scales', m: '{G}', t: 'Enchantment', o: 'If one or more +1/+1 counters would be put on a creature you control, that many plus one are put on it instead.', r: 700, set: 'FDN', num: 176 },
+  { n: 'Duskshell Crawler', m: '{1}{G}', t: 'Creature — Insect', o: 'Whenever another creature you control enters, put a +1/+1 counter on it.', p: '0', tough: '0', r: 1500, set: 'MID', num: 187 },
+  { n: 'Hornbeetle', m: '{4}{G}', t: 'Creature — Insect', o: 'Whenever Hornbeetle deals combat damage, create that many 1/1 Insects, then put a +1/+1 counter on each Insect you control.', p: '1', tough: '4', k: ['Trample'], r: 1700, set: 'BLB', num: 165 },
+  { n: 'Pollywog Prodigy', m: '{1}{G}', t: 'Creature — Frog', o: 'Whenever you cast a spell, put a +1/+1 counter on Pollywog Prodigy.', p: '2', tough: '2', r: 1800, set: 'BLB', num: 166 },
+  { n: 'Innkeeper\'s Talent', m: '{1}{G}', t: 'Enchantment — Class', o: 'If one or more +1/+1 counters would be put on a permanent you control, that many plus one are put on it instead.', r: 500, set: 'BLB', num: 167 },
+
+  // ---- Sacrifice / Aristocrats (B/BR) ----
+  { n: 'Mayhem Devil', m: '{1}{B}{R}', t: 'Creature — Devil', o: 'Whenever a player sacrifices a permanent, Mayhem Devil deals 1 damage to any target.', p: '3', tough: '3', r: 500, set: 'FDN', num: 200, ci: ['B', 'R'] },
+  { n: 'Cauldron Familiar', m: '{B}', t: 'Creature — Cat', o: 'When Cauldron Familiar enters, each opponent loses 1 life and you gain 1 life. Sacrifice a Food: Return Cauldron Familiar from your graveyard.', p: '1', tough: '1', r: 600, set: 'FDN', num: 201 },
+  { n: 'Village Rites', m: '{B}', t: 'Instant', o: 'As an additional cost, sacrifice a creature. Draw two cards.', r: 400, set: 'FDN', num: 202 },
+  { n: 'Deadly Dispute', m: '{1}{B}', t: 'Instant', o: 'As an additional cost, sacrifice an artifact or creature. Draw two cards and create a Treasure token.', r: 350, set: 'FDN', num: 203 },
+  { n: 'Carrion Feeder', m: '{B}', t: 'Creature — Zombie', o: 'Can\'t block. Sacrifice a creature: Put a +1/+1 counter on Carrion Feeder.', p: '1', tough: '1', r: 1300, set: 'FDN', num: 204 },
+  { n: 'Bastion of Remembrance', m: '{2}{B}', t: 'Enchantment', o: 'When Bastion of Remembrance enters, create a 1/1 white Human Soldier. Whenever a creature you control dies, each opponent loses 1 life.', r: 1100, set: 'FDN', num: 205 },
+  { n: 'Bloodtithe Collector', m: '{3}{B}', t: 'Creature — Vampire Noble', o: 'When Bloodtithe Collector enters, each opponent discards a card unless you control a Vampire and they sacrifice a creature.', p: '3', tough: '2', k: ['Flying'], r: 1600, set: 'VOW', num: 109 },
+
+  // ---- Treasure (R/BR ramp) ----
+  { n: 'Reckless Fireweaver', m: '{1}{R}', t: 'Creature — Human Artificer', o: 'Whenever an artifact you control enters, Reckless Fireweaver deals 1 damage to each opponent.', p: '1', tough: '3', r: 1400, set: 'FDN', num: 147 },
+  { n: 'Goldhound', m: '{R}', t: 'Artifact Creature — Dog', o: 'Haste. {T}, Sacrifice Goldhound: Create a Treasure token.', p: '1', tough: '1', k: ['Haste'], r: 1700, set: 'SNC', num: 121 },
+  { n: 'Big Score', m: '{2}{R}', t: 'Instant', o: 'Draw two cards. Create two Treasure tokens.', r: 1200, set: 'SNC', num: 105 },
+  { n: 'Unlucky Witness', m: '{1}{R}', t: 'Creature — Human Peasant', o: 'When Unlucky Witness dies, exile cards and create that many Treasure tokens.', p: '2', tough: '1', r: 1900, set: 'MID', num: 167 },
+  { n: 'Reckless Lackey', m: '{R}', t: 'Creature — Goblin Pirate', o: 'Haste. When Reckless Lackey dies, create a tapped Treasure token.', p: '2', tough: '1', k: ['Haste'], r: 2000, set: 'LCI', num: 156 },
+
+  // ---- Lifegain (W/WB) ----
+  { n: 'Voice of the Blessed', m: '{1}{W}', t: 'Creature — Human Cleric', o: 'Whenever you gain life, put a +1/+1 counter on Voice of the Blessed.', p: '2', tough: '2', k: ['Vigilance'], r: 700, set: 'VOW', num: 41 },
+  { n: 'Cleric of Life\'s Bond', m: '{1}{W}', t: 'Creature — Vampire Cleric', o: 'Lifelink. Whenever you gain life, you may pay {1}. If you do, put a +1/+1 counter on this creature.', p: '1', tough: '3', k: ['Lifelink'], r: 1500, set: 'VOW', num: 33 },
+  { n: 'Resplendent Angel', m: '{1}{W}{W}', t: 'Creature — Angel', o: 'At the beginning of your end step, if you gained 5 or more life this turn, create a 4/4 white Angel token.', p: '3', tough: '3', k: ['Flying'], r: 400, set: 'FDN', num: 30 },
+  { n: 'Soul Warden', m: '{W}', t: 'Creature — Human Cleric', o: 'Whenever another creature enters, you gain 1 life.', p: '1', tough: '1', r: 900, set: 'FDN', num: 31 },
+  { n: 'Trelasarra, Moon Dancer', m: '{G}{W}', t: 'Legendary Creature — Elf Cleric', o: 'Whenever you gain life, put a +1/+1 counter on Trelasarra and scry 1.', p: '2', tough: '2', r: 800, set: 'MOM', num: 230, ci: ['G', 'W'] },
+  { n: 'Light of Hope', m: '{W}', t: 'Instant', o: 'Choose one — You gain 4 life; or put a +1/+1 counter on target creature and it gains lifelink; or destroy target enchantment.', r: 1800, set: 'M21', num: 24 },
+
+  // ---- Spells matter / prowess (UR/R) ----
+  { n: 'Young Pyromancer', m: '{1}{R}', t: 'Creature — Human Shaman', o: 'Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token.', p: '2', tough: '1', r: 350, set: 'FDN', num: 148 },
+  { n: 'Sprite Dragon', m: '{U}{R}', t: 'Creature — Faerie Dragon', o: 'Flying, haste. Whenever you cast a noncreature spell, put a +1/+1 counter on Sprite Dragon.', p: '1', tough: '1', k: ['Flying', 'Haste'], r: 600, set: 'FDN', num: 210, ci: ['U', 'R'] },
+  { n: 'Stormwing Entity', m: '{3}{U}{R}', t: 'Creature — Elemental', o: 'Flash, flying, prowess. This spell costs {4} less if you\'ve cast an instant or sorcery this turn.', p: '3', tough: '3', k: ['Flash', 'Flying', 'Prowess'], r: 900, set: 'FDN', num: 211, ci: ['U', 'R'] },
+  { n: 'Third Path Iconoclast', m: '{U}{R}', t: 'Creature — Human Artificer', o: 'Prowess. Whenever you cast a noncreature spell, create a 1/1 colorless Soldier artifact creature token.', p: '1', tough: '2', k: ['Prowess'], r: 700, set: 'BRO', num: 230, ci: ['U', 'R'] },
+  { n: 'Electrostatic Infantry', m: '{1}{R}', t: 'Creature — Dwarf Soldier', o: 'Trample. Whenever you cast an instant or sorcery spell, put a +1/+1 counter on Electrostatic Infantry.', p: '1', tough: '2', k: ['Trample'], r: 1300, set: 'DMU', num: 132 },
+  { n: 'Symmetry Sage', m: '{1}{U}', t: 'Creature — Human Wizard', o: 'Prowess. As long as you\'ve cast two or more spells this turn, Symmetry Sage has flying.', p: '1', tough: '3', k: ['Prowess'], r: 1700, set: 'DMU', num: 73 },
 ];
 
 function main() {

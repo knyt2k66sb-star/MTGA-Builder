@@ -24,9 +24,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
 const onlyColors = (arr) => (arr ?? []).filter((c) => COLORS.has(c));
 
-function frontImage(card) {
-  if (card.image_uris?.normal) return card.image_uris.normal;
-  if (card.card_faces?.[0]?.image_uris?.normal) return card.card_faces[0].image_uris.normal;
+function frontImage(card, size) {
+  if (card.image_uris?.[size]) return card.image_uris[size];
+  if (card.card_faces?.[0]?.image_uris?.[size]) return card.card_faces[0].image_uris[size];
   return null;
 }
 
@@ -57,7 +57,8 @@ function trim(card) {
     collectorNumber: card.collector_number ?? '',
     arenaId: card.arena_id ?? null,
     layout: card.layout ?? 'normal',
-    image: frontImage(card),
+    image: frontImage(card, 'normal'),
+    imageLarge: frontImage(card, 'large') ?? frontImage(card, 'normal'),
     legalStandard: card.legalities?.standard === 'legal',
     legalBrawl:
       card.legalities?.brawl === 'legal' || card.legalities?.standardbrawl === 'legal',

@@ -38,13 +38,15 @@ export function CardGrid() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-2 text-xs text-slate-400">{results.length} cards</div>
-      <div className="scroll-thin grid grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="mb-2 font-display text-xs uppercase tracking-wider text-parchment-400">
+        {results.length} cards
+      </div>
+      <div className="scroll-thin grid grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {results.map((card) => (
           <CardTile key={card.id} card={card} onClick={() => setPreviewCard(card)} />
         ))}
         {results.length === 0 && (
-          <div className="col-span-full py-8 text-center text-sm text-slate-500">
+          <div className="col-span-full py-8 text-center text-sm text-parchment-500">
             No cards match the current filters.
           </div>
         )}

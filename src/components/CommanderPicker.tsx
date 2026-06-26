@@ -23,17 +23,17 @@ export function CommanderPicker() {
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs text-slate-400">
+      <div className="flex items-center justify-between text-xs text-parchment-400">
         <span>Commander {commanderId ? '' : '(auto-pick if none)'}</span>
         {commanderId && (
-          <button onClick={() => setCommander(null)} className="text-indigo-400 hover:underline">
+          <button onClick={() => setCommander(null)} className="text-gold-300 hover:underline">
             clear
           </button>
         )}
       </div>
-      <div className="scroll-thin max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-slate-800 bg-slate-950 p-1">
+      <div className="scroll-thin max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-gold-800/50 bg-wood-950 p-1">
         {eligible.length === 0 && (
-          <div className="px-2 py-3 text-center text-xs text-slate-500">
+          <div className="px-2 py-3 text-center text-xs text-parchment-500">
             No eligible commanders in these colors.
           </div>
         )}
@@ -42,7 +42,7 @@ export function CommanderPicker() {
             key={c.oracleId}
             onClick={() => setCommander(c.oracleId)}
             className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-xs ${
-              commanderId === c.oracleId ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800'
+              commanderId === c.oracleId ? 'bg-gold-600 text-wood-950' : 'hover:bg-wood-800'
             }`}
           >
             <span className="truncate">{c.name}</span>

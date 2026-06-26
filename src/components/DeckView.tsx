@@ -29,9 +29,9 @@ function EntryRow({ entry, onClick }: { entry: DeckEntry; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded px-1.5 py-0.5 text-left text-sm hover:bg-slate-800"
+      className="flex w-full items-center gap-2 rounded px-1.5 py-0.5 text-left font-serif text-[15px] text-ink hover:bg-gold-700/15"
     >
-      <span className="w-5 text-right font-mono text-slate-400">{entry.qty}</span>
+      <span className="w-5 text-right font-display text-sm text-gold-800">{entry.qty}</span>
       <span className="flex-1 truncate">{entry.card.name}</span>
       <ManaCost cost={entry.card.manaCost} />
     </button>
@@ -48,9 +48,13 @@ export function DeckView() {
 
   if (!deck || !diagnostics) {
     return (
-      <div className="panel flex h-full items-center justify-center p-6 text-center text-sm text-slate-500">
-        Configure parameters and click <span className="mx-1 font-semibold text-indigo-400">Generate Deck</span> to
-        build a deck.
+      <div className="panel flex h-full flex-col items-center justify-center p-6 text-center text-sm text-parchment-400">
+        <div className="font-display text-lg text-parchment-200">No deck selected</div>
+        <p className="mt-1 max-w-sm">
+          Open one from the <span className="text-gold-300">Deck Gallery</span>, or
+          <span className="mx-1 font-semibold text-gold-300">Generate Decks</span>
+          to forge a new spread.
+        </p>
       </div>
     );
   }
@@ -62,10 +66,10 @@ export function DeckView() {
 
   return (
     <div className="panel flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-800 p-3">
+      <div className="flex items-center justify-between border-b border-gold-800/40 p-3">
         <div>
-          <div className="font-semibold">{deck.name}</div>
-          <div className="text-xs text-slate-400">
+          <div className="font-display text-lg font-semibold text-parchment-100">{deck.name}</div>
+          <div className="text-xs text-parchment-400">
             {deck.format === 'brawl' ? 'Standard Brawl' : 'Standard'} · {diagnostics.totalCards} cards
             {deck.seed != null && <> · seed {deck.seed}</>}
           </div>
@@ -75,7 +79,7 @@ export function DeckView() {
         </div>
       </div>
 
-      <div className="grid gap-3 border-b border-slate-800 p-3 sm:grid-cols-2">
+      <div className="grid gap-3 border-b border-gold-800/40 p-3 sm:grid-cols-2">
         <ManaCurve curve={diagnostics.curve} />
         <div className="space-y-2">
           <ColorPie pips={diagnostics.colorPips as Record<Color, number>} />
@@ -83,46 +87,47 @@ export function DeckView() {
         </div>
       </div>
 
-      {(errors.length > 0 || warnings.length > 0) && (
-        <div className="space-y-1 border-b border-slate-800 p-3 text-xs">
+      {errors.length > 0 ? (
+        <div className="space-y-1 border-b border-gold-800/40 p-3 text-xs">
           {errors.map((i, n) => (
             <div key={`e${n}`} className="text-rose-400">✕ {i.message}</div>
           ))}
           {warnings.map((i, n) => (
             <div key={`w${n}`} className="text-amber-400">⚠ {i.message}</div>
           ))}
-          {errors.length === 0 && (
-            <div className="text-emerald-400">✓ Deck is legal for {deck.format}.</div>
-          )}
         </div>
-      )}
-      {errors.length === 0 && warnings.length === 0 && (
-        <div className="border-b border-slate-800 p-2 text-center text-xs text-emerald-400">
-          ✓ Deck is legal for {deck.format}.
+      ) : (
+        <div className="border-b border-gold-800/40 p-2 text-center text-xs font-display tracking-wide text-emerald-400">
+          ✓ Legal for {deck.format === 'brawl' ? 'Standard Brawl' : 'Standard'}
+          {warnings.length > 0 && <span className="text-amber-400"> · {warnings.length} note(s)</span>}
         </div>
       )}
 
-      <div className="scroll-thin flex-1 overflow-y-auto p-3">
-        {deck.commander && (
-          <div className="mb-3">
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-indigo-400">Commander</div>
-            <EntryRow entry={{ card: deck.commander, qty: 1 }} onClick={() => preview(deck.commander!)} />
-          </div>
-        )}
-        {GROUP_ORDER.filter((g) => groups[g]?.length).map((g) => {
-          const entries = groups[g].sort((a, b) => a.card.cmc - b.card.cmc);
-          const count = entries.reduce((s, e) => s + e.qty, 0);
-          return (
-            <div key={g} className="mb-3">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {g} ({count})
+      <div className="scroll-thin m-3 flex-1 overflow-y-auto">
+        <div className="parchment p-3">
+          {deck.commander && (
+            <div className="mb-3">
+              <div className="mb-1 font-display text-xs font-semibold uppercase tracking-wider text-gold-700">
+                Commander
               </div>
-              {entries.map((e) => (
-                <EntryRow key={e.card.id} entry={e} onClick={() => preview(e.card)} />
-              ))}
+              <EntryRow entry={{ card: deck.commander, qty: 1 }} onClick={() => preview(deck.commander!)} />
             </div>
-          );
-        })}
+          )}
+          {GROUP_ORDER.filter((g) => groups[g]?.length).map((g) => {
+            const entries = groups[g].sort((a, b) => a.card.cmc - b.card.cmc);
+            const count = entries.reduce((s, e) => s + e.qty, 0);
+            return (
+              <div key={g} className="mb-3">
+                <div className="mb-1 border-b border-gold-700/30 pb-0.5 font-display text-xs font-semibold uppercase tracking-wider text-gold-800">
+                  {g} ({count})
+                </div>
+                {entries.map((e) => (
+                  <EntryRow key={e.card.id} entry={e} onClick={() => preview(e.card)} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

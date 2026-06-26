@@ -48,11 +48,11 @@ export function ExportImportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="panel w-full max-w-xl bg-slate-900 p-4"
+        className="panel w-full max-w-xl bg-wood-900 p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
@@ -61,13 +61,15 @@ export function ExportImportModal({ onClose }: { onClose: () => void }) {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`btn capitalize ${tab === t ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                className={`btn font-display capitalize ${
+                  tab === t ? 'bg-gold-600 text-wood-950' : 'bg-wood-800 text-parchment-300'
+                }`}
               >
                 {t}
               </button>
             ))}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+          <button onClick={onClose} className="text-parchment-400 hover:text-gold-300">✕</button>
         </div>
 
         {tab === 'export' ? (
@@ -77,7 +79,7 @@ export function ExportImportModal({ onClose }: { onClose: () => void }) {
                 <textarea
                   readOnly
                   value={exportText}
-                  className="scroll-thin h-64 w-full rounded-md border border-slate-700 bg-slate-950 p-2 font-mono text-xs"
+                  className="scroll-thin h-64 w-full rounded-md border border-gold-800/60 bg-wood-950 p-2 font-mono text-xs text-parchment-100"
                 />
                 <div className="flex gap-2">
                   <button onClick={doCopy} className="btn-primary">
@@ -85,12 +87,12 @@ export function ExportImportModal({ onClose }: { onClose: () => void }) {
                   </button>
                   <button onClick={doDownload} className="btn-ghost">Download .txt</button>
                 </div>
-                <p className="text-[11px] text-slate-500">
+                <p className="font-serif text-[12px] italic text-parchment-400">
                   In MTG Arena: Decks → Import to paste this list.
                 </p>
               </>
             ) : (
-              <div className="py-8 text-center text-sm text-slate-500">No deck to export yet.</div>
+              <div className="py-8 text-center text-sm text-parchment-500">No deck to export yet.</div>
             )}
           </div>
         ) : (
@@ -99,11 +101,11 @@ export function ExportImportModal({ onClose }: { onClose: () => void }) {
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'Deck\n4 Lightning Strike (DMU) 137\n...'}
-              className="scroll-thin h-64 w-full rounded-md border border-slate-700 bg-slate-950 p-2 font-mono text-xs"
+              className="scroll-thin h-64 w-full rounded-md border border-gold-800/60 bg-wood-950 p-2 font-mono text-xs text-parchment-100 placeholder:text-parchment-500"
             />
             <button onClick={doImport} className="btn-primary">Import deck</button>
             {warnings.length > 0 && (
-              <div className="scroll-thin max-h-24 space-y-0.5 overflow-y-auto rounded bg-amber-900/30 p-2 text-[11px] text-amber-300">
+              <div className="scroll-thin max-h-24 space-y-0.5 overflow-y-auto rounded bg-amber-950/40 p-2 text-[11px] text-amber-300">
                 {warnings.map((w, i) => (
                   <div key={i}>⚠ {w}</div>
                 ))}

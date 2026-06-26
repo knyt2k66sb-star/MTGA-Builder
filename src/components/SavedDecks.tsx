@@ -8,7 +8,7 @@ export function SavedDecks() {
   const deleteSavedDeck = useStore((s) => s.deleteSavedDeck);
 
   if (savedDecks.length === 0) {
-    return <div className="px-1 py-2 text-xs text-slate-500">No saved decks yet.</div>;
+    return <div className="px-1 py-2 font-serif text-xs italic text-parchment-500">No saved decks yet.</div>;
   }
 
   return (
@@ -16,9 +16,9 @@ export function SavedDecks() {
       {savedDecks.map((d) => (
         <div
           key={d.id}
-          className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1.5"
+          className="flex items-center gap-2 rounded-md border border-gold-800/40 bg-wood-900/70 px-2 py-1.5"
         >
-          <button onClick={() => loadDeck(d.id)} className="flex-1 truncate text-left text-sm hover:text-indigo-400">
+          <button onClick={() => loadDeck(d.id)} className="flex-1 truncate text-left font-serif text-sm text-parchment-200 hover:text-gold-300">
             {d.name}
           </button>
           <div className="flex gap-0.5">
@@ -28,10 +28,10 @@ export function SavedDecks() {
               </span>
             ))}
           </div>
-          <span className="text-[10px] uppercase text-slate-500">{d.format === 'brawl' ? 'BR' : 'ST'}</span>
+          <span className="font-display text-[10px] uppercase text-parchment-500">{d.format === 'brawl' ? 'BR' : 'ST'}</span>
           <button
             onClick={() => deleteSavedDeck(d.id)}
-            className="text-slate-500 hover:text-rose-400"
+            className="text-parchment-500 hover:text-rose-400"
             title="Delete"
           >
             🗑

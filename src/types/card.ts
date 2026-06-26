@@ -77,8 +77,10 @@ export interface Card {
   /** Present when the card is available on Arena. */
   arenaId: number | null;
   layout: string;
-  /** Front-face image URL (normal size). */
+  /** Front-face image URL (normal size) for grid tiles. */
   image: string | null;
+  /** Higher-resolution image URL for the card close-up. */
+  imageLarge: string | null;
   legalStandard: boolean;
   legalBrawl: boolean;
 }

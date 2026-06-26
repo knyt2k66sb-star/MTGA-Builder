@@ -50,3 +50,33 @@ export interface GenerationResult {
   deck: Deck;
   diagnostics: DeckDiagnostics;
 }
+
+export interface MultiGenParams {
+  format: Format;
+  colors: Color[];
+  /** Optional archetype filter; 'any' (or omitted) explores all archetypes. */
+  archetype?: Archetype | 'any';
+  commanderId?: string | null;
+  powerBias?: number;
+  maxResults?: number;
+}
+
+export interface ViabilityBreakdown {
+  synergyDensity: number;
+  quality: number;
+  curveFit: number;
+  manaSoundness: number;
+}
+
+/** A generated deck plus how it scored, for the results gallery. */
+export interface RankedDeck {
+  deck: Deck;
+  diagnostics: DeckDiagnostics;
+  viability: number; // 0..100
+  themeId: string;
+  themeName: string;
+  archetype: Archetype;
+  /** Names of the top synergy cards that define this deck. */
+  synergyCards: string[];
+  breakdown: ViabilityBreakdown;
+}

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import type { Archetype, Card, Color, Format } from '../types/card';
-import type { Deck, DeckDiagnostics, GenParams } from '../types/deck';
+import type { Deck, DeckDiagnostics, MultiGenParams, RankedDeck } from '../types/deck';
 import { POOL, POOL_META } from '../data/pool';
-import { diagnose, generateDeck } from '../engine/build';
+import { diagnose, generateDecks } from '../engine/build';
 import { loadSavedDecks, persistSavedDecks } from './savedDecks';
+
+export type ArchetypeFilter = Archetype | 'any';
 
 export interface CardFilters {
   text: string;
@@ -16,11 +18,15 @@ interface AppState {
   pool: Card[];
   // ---- generator parameters ----
   format: Format;
-  archetype: Archetype;
+  archetype: ArchetypeFilter;
   colors: Color[];
   commanderId: string | null;
   powerBias: number;
-  // ---- current deck ----
+  // ---- generated results ----
+  results: RankedDeck[];
+  selectedDeckId: string | null;
+  generating: boolean;
+  // ---- current deck (the selected/opened one) ----
   deck: Deck | null;
   diagnostics: DeckDiagnostics | null;
   genError: string | null;
@@ -31,11 +37,12 @@ interface AppState {
   previewCard: Card | null;
 
   setFormat: (f: Format) => void;
-  setArchetype: (a: Archetype) => void;
+  setArchetype: (a: ArchetypeFilter) => void;
   toggleColor: (c: Color) => void;
   setCommander: (id: string | null) => void;
   setPowerBias: (n: number) => void;
   generate: () => void;
+  selectResult: (deckId: string) => void;
   setDeck: (deck: Deck) => void;
   recomputeDiagnostics: () => void;
 
@@ -53,10 +60,13 @@ interface AppState {
 export const useStore = create<AppState>((set, get) => ({
   pool: POOL,
   format: 'standard',
-  archetype: 'aggro',
+  archetype: 'any',
   colors: ['R'],
   commanderId: null,
   powerBias: 0.5,
+  results: [],
+  selectedDeckId: null,
+  generating: false,
   deck: null,
   diagnostics: null,
   genError: null,
@@ -77,22 +87,48 @@ export const useStore = create<AppState>((set, get) => ({
 
   generate: () => {
     const s = get();
-    const params: GenParams = {
+    const params: MultiGenParams = {
       format: s.format,
       archetype: s.archetype,
       colors: s.colors,
       commanderId: s.format === 'brawl' ? s.commanderId : null,
       powerBias: s.powerBias,
     };
+    set({ generating: true });
     try {
-      const { deck, diagnostics } = generateDeck(params, s.pool);
-      set({ deck, diagnostics, genError: null });
+      const results = generateDecks(params, s.pool);
+      if (results.length === 0) {
+        set({
+          results: [],
+          genError:
+            'No viable decks found for these parameters. Try different colors or loosen the archetype.',
+          generating: false,
+        });
+        return;
+      }
+      const top = results[0];
+      set({
+        results,
+        selectedDeckId: top.deck.id,
+        deck: top.deck,
+        diagnostics: top.diagnostics,
+        genError: null,
+        generating: false,
+      });
     } catch (err) {
-      set({ genError: err instanceof Error ? err.message : String(err) });
+      set({
+        genError: err instanceof Error ? err.message : String(err),
+        generating: false,
+      });
     }
   },
 
-  setDeck: (deck) => set({ deck, diagnostics: diagnose(deck), genError: null }),
+  selectResult: (deckId) => {
+    const r = get().results.find((x) => x.deck.id === deckId);
+    if (r) set({ deck: r.deck, diagnostics: r.diagnostics, selectedDeckId: deckId });
+  },
+
+  setDeck: (deck) => set({ deck, diagnostics: diagnose(deck), genError: null, selectedDeckId: deck.id }),
   recomputeDiagnostics: () => {
     const d = get().deck;
     if (d) set({ diagnostics: diagnose(d) });

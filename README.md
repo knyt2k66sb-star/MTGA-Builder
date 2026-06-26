@@ -14,19 +14,28 @@ refreshed with a single script so it stays current across rotations.
 
 ## Features
 
-- **Auto-build engine** — generate a full deck from parameters:
+- **Multi-deck synergy generator** — pick colors, a format and an (optional)
+  archetype, and the engine enumerates **every viable deck** for that
+  permutation, each built around a different **card synergy** — e.g. for Gruul
+  you might get a +1/+1 Counters deck, a Goblins deck, a Treasure deck, a
+  go-wide Tokens deck, a Spells-matter deck, and more. Each deck is scored for
+  **viability**; weak decks are filtered out and the rest shown best-first in a
+  **ranked gallery**. Open any deck to edit, save and export it.
   - Format (Standard / Standard Brawl)
   - Mana colors (or auto-pick for constructed)
-  - Archetype: **aggro, tempo, midrange, control, ramp, combo**
+  - Archetype filter: **Any** (explore all) or one of aggro / tempo / midrange /
+    control / ramp / combo
   - Power bias (card quality vs. archetype fit)
-  - Commander selection for Brawl (or auto-pick the best legend in your colors)
+  - Commander auto-picked to fit each Brawl deck's theme (or choose your own)
 - **Card browser** — search by name/text, filter by color, type and mana value,
-  with card images and detail view.
+  with full card art and a high-res close-up on click.
 - **Deck view** — mana curve, color-pip requirements, role breakdown
   (removal / draw / counters / ramp / sweepers), and live legality validation.
 - **Save / load** decks locally (localStorage).
 - **MTGA import/export** — copy a deck straight into Arena's importer, or paste
   an Arena decklist back in.
+- **Vintage-fantasy UI** — old-school Magic styling: parchment & dark-wood
+  surfaces, gold-bevel frames, Cinzel / EB Garamond type.
 
 ## Getting started
 
@@ -66,9 +75,33 @@ no code changes required.** Requires network access to `api.scryfall.com`.
 > for the live, import-verified pool. The pool badge in the app shows whether
 > the current data is `scryfall` or `fallback`.
 
-## How the generation algorithm works
+## How the multi-deck generator works
 
-The engine (`src/engine/`) is a pure, **seeded** (reproducible) pipeline:
+The meaningful difference between two real decks is their **synergy package**,
+not a few swapped cards — so the generator enumerates over **detected themes**
+rather than raw card combinations (`generateDecks` in `src/engine/build.ts`):
+
+1. **Theme detection** (`src/engine/themes.ts`) scans the color-relevant pool
+   for synergies: static text-driven themes (+1/+1 counters, sacrifice,
+   Treasure, tokens, spells-matter/prowess, graveyard, lifegain, landfall,
+   enchantments, beatdown, flyers) **plus dynamic tribal themes** discovered
+   from creature subtypes (Goblins, Elves, Vampires, Dragons…). A `goodstuff`
+   theme (pure card quality) is always available.
+2. For each **(archetype × viable theme)** combination, a deck is built with the
+   single-deck pipeline below, with scoring **boosted toward the theme** so the
+   deck clusters around its synergy.
+3. Each deck gets a **viability score (0–100)** = a blend of synergy density,
+   card quality, curve fit and mana soundness.
+4. Decks below a fixed threshold, or where the synergy didn't materialize, are
+   dropped; **near-identical decks are deduped**; the rest are ranked best-first.
+
+The number of decks scales with how rich the color pool is — a few for a weak
+pairing, many dozens for a strong one (and far more with the full live pool than
+with the bundled sample).
+
+## How a single deck is built
+
+The single-deck engine (`src/engine/`) is a pure, **seeded** (reproducible) pipeline:
 
 1. **Archetype profile** (`archetypes.ts`) sets target land / creature /
    noncreature counts and a target mana curve per archetype.

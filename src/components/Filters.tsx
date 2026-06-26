@@ -17,7 +17,7 @@ export function Filters() {
         value={filters.text}
         onChange={(e) => setFilterText(e.target.value)}
         placeholder="Search name or text…"
-        className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm outline-none focus:border-indigo-500"
+        className="w-full rounded-md border border-gold-800/60 bg-wood-950 px-3 py-1.5 font-serif text-sm text-parchment-100 outline-none placeholder:text-parchment-500 focus:border-gold-500"
       />
       <div className="flex items-center gap-1.5">
         {COLORS.map((c) => (
@@ -36,15 +36,15 @@ export function Filters() {
             onClick={() => toggleFilterType(t)}
             className={`rounded px-2 py-0.5 text-xs ${
               filters.types.includes(t)
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-gold-600 text-wood-950'
+                : 'bg-wood-800 text-parchment-300 hover:bg-wood-700'
             }`}
           >
             {t}
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-xs text-slate-400">
+      <label className="flex items-center gap-2 text-xs text-parchment-400">
         Max MV: {filters.maxCmc ?? 'any'}
         <input
           type="range"

@@ -1,10 +1,13 @@
-import { ARCHETYPES, COLORS, type Archetype } from '../types/card';
+import { ARCHETYPES } from '../types/card';
+import { COLORS } from '../types/card';
 import { ARCHETYPE_PROFILES } from '../engine';
-import { useStore } from '../store/useStore';
+import { useStore, type ArchetypeFilter } from '../store/useStore';
 import { ColorPip } from './common';
 import { CommanderPicker } from './CommanderPicker';
 
-export function GeneratorPanel() {
+const ARCHETYPE_OPTIONS: ArchetypeFilter[] = ['any', ...ARCHETYPES];
+
+export function GeneratorPanel({ onGenerated }: { onGenerated?: () => void }) {
   const format = useStore((s) => s.format);
   const archetype = useStore((s) => s.archetype);
   const colors = useStore((s) => s.colors);
@@ -19,14 +22,16 @@ export function GeneratorPanel() {
   return (
     <div className="panel space-y-4 p-4">
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-slate-200">Auto-Build</h2>
-        <div className="flex rounded-md border border-slate-700 p-0.5 text-sm">
+        <h2 className="mb-2 font-display text-sm font-semibold uppercase tracking-wider text-gold-300">
+          Auto-Build
+        </h2>
+        <div className="flex rounded-md border border-gold-800/60 p-0.5 text-sm">
           {(['standard', 'brawl'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFormat(f)}
-              className={`flex-1 rounded px-2 py-1 capitalize ${
-                format === f ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              className={`flex-1 rounded px-2 py-1 font-display capitalize ${
+                format === f ? 'bg-gold-600 text-wood-950' : 'text-parchment-300 hover:bg-wood-800'
               }`}
             >
               {f === 'brawl' ? 'Standard Brawl' : 'Standard'}
@@ -36,7 +41,7 @@ export function GeneratorPanel() {
       </div>
 
       <div>
-        <div className="mb-1 text-xs text-slate-400">
+        <div className="mb-1 text-xs text-parchment-400">
           {format === 'brawl' ? 'Color identity (commander)' : 'Colors'}
         </div>
         <div className="flex gap-1.5">
@@ -47,27 +52,31 @@ export function GeneratorPanel() {
       </div>
 
       <div>
-        <div className="mb-1 text-xs text-slate-400">Archetype</div>
+        <div className="mb-1 text-xs text-parchment-400">Archetype filter</div>
         <div className="grid grid-cols-3 gap-1">
-          {ARCHETYPES.map((a: Archetype) => (
+          {ARCHETYPE_OPTIONS.map((a) => (
             <button
               key={a}
               onClick={() => setArchetype(a)}
-              title={ARCHETYPE_PROFILES[a].blurb}
+              title={a === 'any' ? 'Explore every archetype' : ARCHETYPE_PROFILES[a].blurb}
               className={`rounded px-2 py-1 text-xs capitalize ${
-                archetype === a ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                archetype === a ? 'bg-gold-600 text-wood-950' : 'bg-wood-800 text-parchment-300 hover:bg-wood-700'
               }`}
             >
               {a}
             </button>
           ))}
         </div>
-        <p className="mt-1 text-[11px] leading-snug text-slate-500">{ARCHETYPE_PROFILES[archetype].blurb}</p>
+        <p className="mt-1 font-serif text-[12px] italic leading-snug text-parchment-400">
+          {archetype === 'any'
+            ? 'Explore every archetype — generates the full spread of viable decks.'
+            : ARCHETYPE_PROFILES[archetype].blurb}
+        </p>
       </div>
 
       {format === 'brawl' && <CommanderPicker />}
 
-      <label className="block text-xs text-slate-400">
+      <label className="block text-xs text-parchment-400">
         Power bias (quality vs. archetype): {powerBias.toFixed(2)}
         <input
           type="range"
@@ -80,10 +89,20 @@ export function GeneratorPanel() {
         />
       </label>
 
-      <button onClick={generate} className="btn-primary w-full">
-        ⚙ Generate Deck
+      <button
+        onClick={() => {
+          generate();
+          onGenerated?.();
+        }}
+        className="btn-primary w-full"
+      >
+        ⚙ Generate Decks
       </button>
-      {genError && <div className="rounded bg-rose-900/40 p-2 text-xs text-rose-300">{genError}</div>}
+      {genError && (
+        <div className="rounded border border-rose-800/50 bg-rose-950/40 p-2 text-xs text-rose-300">
+          {genError}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { Color } from '../types/card';
+import { COLOR_NAMES } from '../types/card';
 
 export const COLOR_STYLE: Record<Color | 'C', { bg: string; text: string; border: string; label: string }> = {
   W: { bg: 'bg-amber-100', text: 'text-amber-950', border: 'border-amber-300', label: 'W' },
@@ -23,8 +24,8 @@ export function ColorPip({
     <button
       type="button"
       onClick={onClick}
-      title={color}
-      className={`pip ${active ? `${s.bg} ${s.text} ${s.border}` : 'bg-slate-800 text-slate-500 border-slate-700'} ${
+      title={COLOR_NAMES[color]}
+      className={`pip ${active ? `${s.bg} ${s.text} ${s.border}` : 'bg-wood-800 text-parchment-500 border-gold-800/50'} ${
         onClick ? 'cursor-pointer hover:scale-110' : 'cursor-default'
       }`}
     >
