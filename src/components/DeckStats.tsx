@@ -49,6 +49,44 @@ export function ColorPie({ pips }: { pips: Record<Color, number> }) {
   );
 }
 
+const RARITY_STYLE: Record<string, { dot: string; label: string }> = {
+  mythic: { dot: 'bg-orange-500', label: 'Mythic' },
+  rare: { dot: 'bg-amber-400', label: 'Rare' },
+  uncommon: { dot: 'bg-slate-300', label: 'Uncommon' },
+  common: { dot: 'bg-zinc-600', label: 'Common' },
+};
+const RARITY_ORDER = ['mythic', 'rare', 'uncommon', 'common'] as const;
+
+/** Wildcard cost: how many of each rarity the deck needs. */
+export function RarityBreakdown({
+  rarity,
+  compact = false,
+}: {
+  rarity: Record<string, number>;
+  compact?: boolean;
+}) {
+  return (
+    <div>
+      {!compact && (
+        <div className="mb-1 text-xs text-parchment-400">Rarity (wildcards)</div>
+      )}
+      <div className={`flex flex-wrap items-center ${compact ? 'gap-x-2.5 gap-y-1' : 'gap-x-3 gap-y-1'}`}>
+        {RARITY_ORDER.map((r) => (
+          <span
+            key={r}
+            className="inline-flex items-center gap-1 text-xs"
+            title={RARITY_STYLE[r].label}
+          >
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${RARITY_STYLE[r].dot} ring-1 ring-black/40`} />
+            {!compact && <span className="text-parchment-400">{RARITY_STYLE[r].label}</span>}
+            <span className="font-display text-parchment-100">{rarity[r] ?? 0}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RoleBreakdown({ diag }: { diag: DeckDiagnostics }) {
   const rows: [string, number][] = [
     ['Lands', diag.landCount],

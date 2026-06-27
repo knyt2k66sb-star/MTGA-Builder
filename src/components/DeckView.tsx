@@ -5,7 +5,7 @@ import type { DeckEntry } from '../types/deck';
 import { validateDeck } from '../engine';
 import { useStore } from '../store/useStore';
 import { ManaCost } from './common';
-import { ColorPie, ManaCurve, RoleBreakdown } from './DeckStats';
+import { ColorPie, ManaCurve, RarityBreakdown, RoleBreakdown } from './DeckStats';
 
 function group(entries: DeckEntry[]): Record<string, DeckEntry[]> {
   const groups: Record<string, DeckEntry[]> = {};
@@ -80,7 +80,10 @@ export function DeckView() {
       </div>
 
       <div className="grid gap-3 border-b border-gold-800/40 p-3 sm:grid-cols-2">
-        <ManaCurve curve={diagnostics.curve} />
+        <div className="space-y-3">
+          <ManaCurve curve={diagnostics.curve} />
+          <RarityBreakdown rarity={diagnostics.rarity} />
+        </div>
         <div className="space-y-2">
           <ColorPie pips={diagnostics.colorPips as Record<Color, number>} />
           <RoleBreakdown diag={diagnostics} />

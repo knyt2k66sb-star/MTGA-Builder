@@ -43,6 +43,8 @@ export interface DeckDiagnostics {
   curve: Record<string, number>;
   colorPips: Record<Color, number>;
   roleBreakdown: Record<string, number>;
+  /** Count of nonbasic cards by rarity (mythic/rare/uncommon/common). */
+  rarity: Record<string, number>;
   warnings: string[];
 }
 

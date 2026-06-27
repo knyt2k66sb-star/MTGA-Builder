@@ -1,7 +1,7 @@
 import type { Color } from '../types/card';
 import type { RankedDeck } from '../types/deck';
 import { useStore } from '../store/useStore';
-import { ManaCurve, ColorPie } from './DeckStats';
+import { ManaCurve, ColorPie, RarityBreakdown } from './DeckStats';
 import { ColorPip } from './common';
 
 function ViabilityMeter({ value }: { value: number }) {
@@ -67,6 +67,9 @@ function ResultCard({ r, onOpen }: { r: RankedDeck; onOpen: () => void }) {
         <ManaCurve curve={r.diagnostics.curve} />
         <ColorPie pips={r.diagnostics.colorPips as Record<Color, number>} />
       </div>
+
+      <RarityBreakdown rarity={r.diagnostics.rarity} compact />
+
 
       {thumbs.length > 0 && (
         <div className="flex gap-1">

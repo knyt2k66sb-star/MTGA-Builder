@@ -308,8 +308,17 @@ export function diagnose(deck: Deck, warnings: string[] = []): DeckDiagnostics {
   let nonCreatureSpellCount = 0;
   const curve: Record<string, number> = { '0-1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6+': 0 };
   const roleBreakdown: Record<string, number> = {};
+  // Rarity = wildcard cost in Arena. Basic lands are free, so exclude them;
+  // nonbasic lands still cost wildcards and are counted.
+  const rarity: Record<string, number> = { mythic: 0, rare: 0, uncommon: 0, common: 0 };
 
   for (const { card, qty } of all) {
+    if (!isBasicLand(card)) {
+      const r = ['mythic', 'rare', 'uncommon', 'common'].includes(card.rarity)
+        ? card.rarity
+        : 'rare'; // bucket promos/special into rare
+      rarity[r] += qty;
+    }
     if (isLand(card)) {
       landCount += qty;
       continue;
@@ -332,6 +341,7 @@ export function diagnose(deck: Deck, warnings: string[] = []): DeckDiagnostics {
     curve,
     colorPips,
     roleBreakdown,
+    rarity,
     warnings,
   };
 }
