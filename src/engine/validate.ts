@@ -64,15 +64,15 @@ export function validateDeck(deck: Deck): ValidationIssue[] {
     }
   }
 
-  // --- Format legality + Arena availability ---
+  // --- Format legality ---
+  // (Arena availability isn't re-checked here: the pool is sourced from a
+  // `game:arena` query, and Scryfall lags on `arena_id` for new sets, so a
+  // missing id is not a reliable "unavailable" signal and only adds noise.)
   const checkLegal = (card: Card): boolean =>
     deck.format === 'brawl' ? card.legalBrawl : card.legalStandard;
   for (const { card } of deck.main) {
     if (!isBasicLand(card) && !checkLegal(card)) {
       issues.push({ level: 'error', message: `${card.name} is not legal in ${deck.format}.` });
-    }
-    if (!isBasicLand(card) && card.arenaId == null) {
-      issues.push({ level: 'warning', message: `${card.name} may not be available on Arena (no arena id).` });
     }
   }
 

@@ -174,12 +174,15 @@ const STATIC_THEMES: Theme[] = [
 const TRACKED_TRIBES = [
   'Elf', 'Goblin', 'Vampire', 'Merfolk', 'Dragon', 'Knight', 'Soldier',
   'Wizard', 'Spirit', 'Zombie', 'Human', 'Angel', 'Beast', 'Warrior', 'Rogue',
+  // Universes Beyond / Marvel Super Heroes creature types
+  'Hero', 'Villain', 'Mutant', 'Robot', 'God',
 ];
 
 const IRREGULAR_PLURALS: Record<string, string> = {
   Elf: 'Elves',
   Merfolk: 'Merfolk',
   Dwarf: 'Dwarves',
+  Hero: 'Heroes',
 };
 
 function pluralize(tribe: string): string {

@@ -3,14 +3,27 @@ import { COLORS } from '../types/card';
 import type { ArchetypeProfile } from './archetypes';
 import { detectRoles, numericPower, type Role } from './heuristics';
 
+// Rarity acts as a quality floor. EDHREC rank measures *Commander* popularity,
+// so it badly underrates brand-new and non-EDH cards (e.g. a freshly released
+// Standard set ranks ~25k even for its bombs). Without this floor those cards
+// never get drafted into generated decks. A mythic/rare is probably worth a
+// look regardless of EDH play, so we never score it below its rarity floor.
+const RARITY_FLOOR: Record<string, number> = {
+  mythic: 0.46,
+  rare: 0.4,
+  uncommon: 0.31,
+  common: 0.26,
+};
+
 /**
- * Quality proxy from EDHREC rank. Lower rank = more played = better.
- * Maps to ~0..1 via inverse-log. Cards with no rank get a neutral-low default.
+ * Quality proxy. Uses EDHREC rank when it's favorable, but never drops below a
+ * floor implied by the card's rarity, so new-set cards (poor/no EDH rank) still
+ * compete. rank 1 -> ~1.0, rank 1000 -> ~0.33, missing/poor -> rarity floor.
  */
 export function qualityScore(card: Card): number {
-  if (card.edhrecRank == null) return 0.25;
-  // rank 1 -> ~1.0, rank 1000 -> ~0.5, rank 20000 -> ~0.25
-  return 1 / Math.log10(card.edhrecRank + 10);
+  const floor = RARITY_FLOOR[card.rarity] ?? 0.25;
+  if (card.edhrecRank == null) return floor;
+  return Math.max(1 / Math.log10(card.edhrecRank + 10), floor);
 }
 
 /** Best role-weight match for the archetype, plus aggression bonus. */
