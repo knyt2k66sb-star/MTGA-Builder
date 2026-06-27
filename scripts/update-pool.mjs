@@ -115,7 +115,11 @@ function dedupe(trimmed) {
 async function main() {
   console.log(`Querying Scryfall: ${QUERY}`);
   const raw = await fetchAll();
-  const trimmed = dedupe(raw.map(trim)).filter((c) => c.arenaId != null);
+  // The query already restricts to `game:arena`, so every result is on Arena.
+  // Do NOT additionally require a populated `arena_id`: Scryfall lags a few days
+  // on `arena_id` for brand-new sets (e.g. Marvel Super Heroes on release week),
+  // and dropping those would wrongly exclude the newest set's cards.
+  const trimmed = dedupe(raw.map(trim));
   trimmed.sort((a, b) => (a.edhrecRank ?? 1e9) - (b.edhrecRank ?? 1e9));
 
   const sets = [...new Set(trimmed.map((c) => c.set))].sort();
