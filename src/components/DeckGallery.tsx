@@ -1,6 +1,6 @@
 import type { Color } from '../types/card';
 import type { RankedDeck } from '../types/deck';
-import { useStore } from '../store/useStore';
+import { useIsDeckSaved, useStore } from '../store/useStore';
 import { ManaCurve, ColorPie, RarityBreakdown } from './DeckStats';
 import { ColorPip } from './common';
 
@@ -24,6 +24,7 @@ function ResultCard({ r, onOpen }: { r: RankedDeck; onOpen: () => void }) {
   const selectResult = useStore((s) => s.selectResult);
   const selectedDeckId = useStore((s) => s.selectedDeckId);
   const selected = selectedDeckId === r.deck.id;
+  const saved = useIsDeckSaved(r.deck);
 
   const thumbs = r.synergyCards
     .map((name) => r.deck.main.find((e) => e.card.name === name)?.card)
@@ -36,10 +37,15 @@ function ResultCard({ r, onOpen }: { r: RankedDeck; onOpen: () => void }) {
         selectResult(r.deck.id);
         onOpen();
       }}
-      className={`panel group flex flex-col gap-2 p-3 text-left transition-transform hover:-translate-y-0.5 ${
+      className={`panel group relative flex flex-col gap-2 p-3 text-left transition-transform hover:-translate-y-0.5 ${
         selected ? 'ring-2 ring-gold-400' : ''
       }`}
     >
+      {saved && (
+        <span className="absolute -right-1.5 -top-1.5 z-10 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow ring-1 ring-emerald-300/60">
+          ✓ Saved
+        </span>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-display text-base font-semibold leading-tight text-parchment-100">
@@ -69,7 +75,6 @@ function ResultCard({ r, onOpen }: { r: RankedDeck; onOpen: () => void }) {
       </div>
 
       <RarityBreakdown rarity={r.diagnostics.rarity} compact />
-
 
       {thumbs.length > 0 && (
         <div className="flex gap-1">

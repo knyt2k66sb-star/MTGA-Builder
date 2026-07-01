@@ -1,6 +1,22 @@
+import { isBasicLand } from '../types/card';
 import type { Deck } from '../types/deck';
 
 const KEY = 'mtga-builder:saved-decks';
+
+/**
+ * Content signature for a deck — same commander + same nonbasic cards/qty,
+ * regardless of id/name/seed. Two decks with this in common are "the same
+ * saved deck" as far as the user is concerned, even if one was regenerated
+ * later under a new id. Basics are excluded since they carry no identity.
+ */
+export function deckSignature(deck: Deck): string {
+  const parts = deck.main
+    .filter((e) => !isBasicLand(e.card))
+    .map((e) => `${e.card.oracleId}:${e.qty}`)
+    .sort();
+  const commander = deck.commander ? `CMD:${deck.commander.oracleId}` : '';
+  return [deck.format, commander, ...parts].join('|');
+}
 
 /**
  * Saved decks live in localStorage. We serialize the full Deck (cards included)

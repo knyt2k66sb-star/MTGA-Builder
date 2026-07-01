@@ -3,13 +3,16 @@ import { isCreature, isLand } from '../types/card';
 import { qualityScore } from './scoring';
 // (string-detection helpers are inlined per theme below)
 
+type CurveBucketKey = '0-1' | '2' | '3' | '4' | '5' | '6+';
+
 /**
  * A synergy theme. `detect` returns how much a card contributes to the theme:
  *   0   = irrelevant
  *   ~1  = fits / minor enabler
  *   2-3 = strong enabler / payoff
- * Decks are built by boosting card scores with `detect`, so denser themes
- * cluster harder.
+ * Decks are built by locking in a core of the highest-`detect` cards first
+ * (see engine/build.ts), so denser themes produce visibly distinct decks
+ * rather than reskins of the same quality-sorted pile.
  */
 export interface Theme {
   id: string;
@@ -19,6 +22,12 @@ export interface Theme {
   /** Minimum strong contributors that must exist in the color pool to bother. */
   minCore: number;
   detect: (card: Card) => number;
+  /** Optional nudge to the archetype's target curve (added, then renormalized). */
+  curveNudge?: Partial<Record<CurveBucketKey, number>>;
+  /** Optional shift to the creature/noncreature split, e.g. -0.15 = fewer creatures. */
+  creatureShift?: number;
+  /** Present on synthesized combo themes: the two themes it was built from. */
+  parentIds?: [string, string];
 }
 
 // ---- Static, text-driven themes --------------------------------------------
@@ -83,6 +92,8 @@ const STATIC_THEMES: Theme[] = [
     name: 'Spells Matter',
     archetypeLean: ['tempo', 'aggro'],
     minCore: 5,
+    curveNudge: { '0-1': 0.05, '2': 0.05, '4': -0.04, '5': -0.03 },
+    creatureShift: -0.15,
     detect: (c) => {
       let s = 0;
       if (c.keywords.includes('Prowess')) s += 2;
@@ -97,6 +108,7 @@ const STATIC_THEMES: Theme[] = [
     name: 'Graveyard',
     archetypeLean: ['midrange', 'control'],
     minCore: 5,
+    curveNudge: { '2': 0.03, '3': 0.03 },
     detect: (c) => {
       let s = 0;
       if (/from your graveyard/i.test(c.oracleText)) s += 2;
@@ -124,6 +136,8 @@ const STATIC_THEMES: Theme[] = [
     name: 'Landfall & Lands',
     archetypeLean: ['ramp', 'midrange'],
     minCore: 4,
+    curveNudge: { '2': 0.05, '6+': 0.03 },
+    creatureShift: 0.05,
     detect: (c) => {
       let s = 0;
       if (/landfall|whenever a land enters/i.test(c.oracleText)) s += 2.5;
@@ -167,6 +181,79 @@ const STATIC_THEMES: Theme[] = [
     minCore: 6,
     detect: (c) => (c.keywords.includes('Flying') && isCreature(c) ? 2 : 0),
   },
+  {
+    id: 'equipment',
+    name: 'Equipment',
+    archetypeLean: ['aggro', 'midrange', 'tempo'],
+    minCore: 4,
+    curveNudge: { '2': 0.04 },
+    creatureShift: 0.08,
+    detect: (c) => {
+      let s = 0;
+      if (/\bEquipment\b/.test(c.typeLine)) s += 2;
+      if (/\bequip\b/i.test(c.oracleText)) s += 1.5;
+      if (/living weapon|whenever .* becomes equipped/i.test(c.oracleText)) s += 1;
+      return s;
+    },
+  },
+  {
+    id: 'discard',
+    name: 'Discard & Madness',
+    archetypeLean: ['midrange', 'control', 'aggro'],
+    minCore: 5,
+    creatureShift: -0.05,
+    detect: (c) => {
+      let s = 0;
+      if (/madness/i.test(c.oracleText)) s += 2;
+      if (/discards? a card/i.test(c.oracleText)) s += 1.5;
+      if (/you may discard a card/i.test(c.oracleText)) s += 1;
+      return s;
+    },
+  },
+  {
+    id: 'reanimator',
+    name: 'Reanimator',
+    archetypeLean: ['midrange', 'control', 'ramp'],
+    minCore: 4,
+    curveNudge: { '0-1': 0.08, '6+': 0.1, '3': -0.05, '4': -0.05 },
+    creatureShift: 0.05,
+    detect: (c) => {
+      let s = 0;
+      if (/put .* from your graveyard onto the battlefield|return .* from your graveyard to the battlefield/i.test(c.oracleText)) s += 2.5;
+      if (/onto the battlefield from (a|your) graveyard/i.test(c.oracleText)) s += 2;
+      if (/\bmill\b/i.test(c.oracleText)) s += 0.8;
+      return s;
+    },
+  },
+  {
+    id: 'blink',
+    name: 'Blink & ETB',
+    archetypeLean: ['midrange', 'control'],
+    minCore: 5,
+    curveNudge: { '3': 0.04 },
+    creatureShift: 0.05,
+    detect: (c) => {
+      let s = 0;
+      if (/whenever .* enters,/i.test(c.oracleText)) s += 1.3;
+      if (/exile .*, then return (it|that card) to the battlefield/i.test(c.oracleText)) s += 2.5;
+      if (/flicker|blink/i.test(c.oracleText)) s += 1.5;
+      return s;
+    },
+  },
+  {
+    id: 'burn',
+    name: 'Burn',
+    archetypeLean: ['aggro', 'tempo'],
+    minCore: 5,
+    curveNudge: { '0-1': 0.06, '2': 0.04 },
+    creatureShift: -0.05,
+    detect: (c) => {
+      let s = 0;
+      if (/damage to (any target|each opponent|that player|target player)/i.test(c.oracleText)) s += 2;
+      if (/deals? \d+ damage/i.test(c.oracleText)) s += 0.4;
+      return s;
+    },
+  },
 ];
 
 // ---- Dynamic tribal themes -------------------------------------------------
@@ -206,6 +293,88 @@ function tribalTheme(tribe: string): Theme {
   };
 }
 
+// ---- Composite (dual-theme) synergy packages --------------------------------
+//
+// Real constructed decks are rarely built around one axis in isolation — a
+// sacrifice deck wants Treasure/Food fodder, a tribal deck leans on a support
+// theme (Goblins want sac outlets, Elves want ramp/counters). Combining two
+// independently-viable themes into one synthesized theme is what actually
+// produces decks that *read* as different from each other, rather than
+// reshuffled top-quality staples with a different label.
+
+/** Curated pairs of static themes that combine into a recognizable archetype. */
+const STATIC_COMBO_PAIRS: [string, string][] = [
+  ['aristocrats', 'treasure'],
+  ['aristocrats', 'tokens'],
+  ['aristocrats', 'graveyard'],
+  ['counters', 'tokens'],
+  ['counters', 'lifegain'],
+  ['spells', 'flyers'],
+  ['spells', 'burn'],
+  ['graveyard', 'discard'],
+  ['graveyard', 'reanimator'],
+  ['landfall', 'treasure'],
+  ['equipment', 'aggression'],
+  ['aggression', 'burn'],
+  ['enchantments', 'lifegain'],
+  ['blink', 'lifegain'],
+];
+
+/** Each tribe gets one curated companion static theme it naturally supports. */
+const TRIBE_COMBOS: Record<string, string> = {
+  goblin: 'aristocrats',
+  elf: 'counters',
+  vampire: 'lifegain',
+  zombie: 'graveyard',
+  soldier: 'tokens',
+  spirit: 'flyers',
+  human: 'aggression',
+  wizard: 'spells',
+  knight: 'equipment',
+  merfolk: 'landfall',
+  dragon: 'treasure',
+  angel: 'lifegain',
+  beast: 'counters',
+  warrior: 'equipment',
+  rogue: 'graveyard',
+  hero: 'counters',
+  villain: 'aristocrats',
+  mutant: 'counters',
+  robot: 'treasure',
+  god: 'enchantments',
+};
+
+function mergeCurveNudge(
+  a?: Theme['curveNudge'],
+  b?: Theme['curveNudge'],
+): Theme['curveNudge'] {
+  if (!a && !b) return undefined;
+  const out: Theme['curveNudge'] = {};
+  const keys: CurveBucketKey[] = ['0-1', '2', '3', '4', '5', '6+'];
+  for (const k of keys) {
+    const v = (a?.[k] ?? 0) + (b?.[k] ?? 0);
+    if (v !== 0) out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function makeCombo(a: Theme, b: Theme): Theme {
+  const creatureShift =
+    a.creatureShift != null || b.creatureShift != null
+      ? ((a.creatureShift ?? 0) + (b.creatureShift ?? 0)) / 2
+      : undefined;
+  return {
+    id: `${a.id}+${b.id}`,
+    name: `${a.name} & ${b.name}`,
+    archetypeLean: Array.from(new Set([...a.archetypeLean, ...b.archetypeLean])),
+    minCore: Math.max(a.minCore, b.minCore),
+    detect: (c) => a.detect(c) + b.detect(c),
+    curveNudge: mergeCurveNudge(a.curveNudge, b.curveNudge),
+    creatureShift,
+    parentIds: [a.id, b.id],
+  };
+}
+
 // ---- Goodstuff (always-on baseline) ----------------------------------------
 
 const GOODSTUFF: Theme = {
@@ -217,21 +386,42 @@ const GOODSTUFF: Theme = {
   detect: (c) => (isLand(c) ? 0 : qualityScore(c) * 2),
 };
 
+/** Detect threshold for "does this card meaningfully belong to the theme". */
+export const THEME_CARD_THRESHOLD = 1.3;
+
+function isViableTheme(theme: Theme, colorPool: Card[]): boolean {
+  const core = colorPool.filter((c) => !isLand(c) && theme.detect(c) >= THEME_CARD_THRESHOLD).length;
+  return core >= theme.minCore;
+}
+
 /**
- * Determine which themes are viable in a color-filtered pool. A theme is
- * viable if at least `minCore` cards contribute meaningfully. Goodstuff is
- * always included.
+ * Determine which themes are viable in a color-filtered pool: every
+ * independently-viable single theme (static + tribal), plus curated
+ * combinations of two viable themes that form a recognizable synergy
+ * package. Goodstuff is always included as a baseline.
  */
 export function viableThemes(colorPool: Card[]): Theme[] {
-  const candidates: Theme[] = [
+  const singleCandidates: Theme[] = [
     ...STATIC_THEMES,
     ...TRACKED_TRIBES.map(tribalTheme),
   ];
-  const viable = candidates.filter((theme) => {
-    const core = colorPool.filter((c) => !isLand(c) && theme.detect(c) >= 1.5).length;
-    return core >= theme.minCore;
-  });
-  return [GOODSTUFF, ...viable];
+  const viableSingles = singleCandidates.filter((t) => isViableTheme(t, colorPool));
+  const byId = new Map(viableSingles.map((t) => [t.id, t]));
+
+  const combos: Theme[] = [];
+  for (const [aId, bId] of STATIC_COMBO_PAIRS) {
+    const a = byId.get(aId);
+    const b = byId.get(bId);
+    if (a && b) combos.push(makeCombo(a, b));
+  }
+  for (const [tribe, companionId] of Object.entries(TRIBE_COMBOS)) {
+    const a = byId.get(`tribe-${tribe}`);
+    const b = byId.get(companionId);
+    if (a && b) combos.push(makeCombo(a, b));
+  }
+  const viableCombos = combos.filter((t) => isViableTheme(t, colorPool));
+
+  return [GOODSTUFF, ...viableSingles, ...viableCombos];
 }
 
 export { GOODSTUFF };

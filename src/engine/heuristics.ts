@@ -34,7 +34,15 @@ function isRamp(card: Card): boolean {
   return RE.rampText.test(card.oracleText);
 }
 
+// detectRoles is regex-heavy and pure per card; the multi-deck generator
+// calls it for the same cards across every (archetype x theme) combination,
+// so memoize by card id rather than re-running the regexes each time.
+const roleCache = new Map<string, Set<Role>>();
+
 export function detectRoles(card: Card): Set<Role> {
+  const cached = roleCache.get(card.id);
+  if (cached) return cached;
+
   const roles = new Set<Role>();
   const text = card.oracleText || '';
 
@@ -50,6 +58,7 @@ export function detectRoles(card: Card): Set<Role> {
   }
 
   if (roles.size === 0) roles.add('other');
+  roleCache.set(card.id, roles);
   return roles;
 }
 

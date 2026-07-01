@@ -15,15 +15,24 @@ const RARITY_FLOOR: Record<string, number> = {
   common: 0.26,
 };
 
+// Pure per-card computation, but called for the same cards across every
+// (archetype x theme) combination the multi-deck generator evaluates —
+// memoize by card id to avoid redundant log10/Math.max work at scale.
+const qualityCache = new Map<string, number>();
+
 /**
  * Quality proxy. Uses EDHREC rank when it's favorable, but never drops below a
  * floor implied by the card's rarity, so new-set cards (poor/no EDH rank) still
  * compete. rank 1 -> ~1.0, rank 1000 -> ~0.33, missing/poor -> rarity floor.
  */
 export function qualityScore(card: Card): number {
+  const cached = qualityCache.get(card.id);
+  if (cached != null) return cached;
   const floor = RARITY_FLOOR[card.rarity] ?? 0.25;
-  if (card.edhrecRank == null) return floor;
-  return Math.max(1 / Math.log10(card.edhrecRank + 10), floor);
+  const score =
+    card.edhrecRank == null ? floor : Math.max(1 / Math.log10(card.edhrecRank + 10), floor);
+  qualityCache.set(card.id, score);
+  return score;
 }
 
 /** Best role-weight match for the archetype, plus aggression bonus. */

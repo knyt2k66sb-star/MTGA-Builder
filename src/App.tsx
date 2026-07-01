@@ -23,6 +23,7 @@ export default function App() {
   const [showIO, setShowIO] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const resultCount = useStore((s) => s.results.length);
+  const savedCount = useStore((s) => s.savedDecks.length);
 
   const afterGenerate = () => {
     setTab('results');
@@ -82,7 +83,7 @@ export default function App() {
           <GeneratorPanel onGenerated={afterGenerate} />
           <div>
             <h2 className="mb-2 font-display text-sm font-semibold uppercase tracking-wider text-gold-300">
-              Saved Decks
+              Saved Decks{savedCount > 0 && ` (${savedCount})`}
             </h2>
             <SavedDecks />
           </div>

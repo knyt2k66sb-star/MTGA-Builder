@@ -1,9 +1,10 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { Archetype, Card, Color, Format } from '../types/card';
 import type { Deck, DeckDiagnostics, MultiGenParams, RankedDeck } from '../types/deck';
 import { POOL, POOL_META } from '../data/pool';
 import { diagnose, generateDecks } from '../engine/build';
-import { loadSavedDecks, persistSavedDecks } from './savedDecks';
+import { deckSignature, loadSavedDecks, persistSavedDecks } from './savedDecks';
 
 export type ArchetypeFilter = Archetype | 'any';
 
@@ -138,7 +139,10 @@ export const useStore = create<AppState>((set, get) => ({
     const { deck, savedDecks } = get();
     if (!deck) return;
     const stamped = { ...deck, updatedAt: new Date().toISOString() };
-    const without = savedDecks.filter((d) => d.id !== stamped.id);
+    const sig = deckSignature(stamped);
+    // Replace any existing entry with the same id OR the same content (a
+    // regenerated-but-identical deck shouldn't create a second saved copy).
+    const without = savedDecks.filter((d) => d.id !== stamped.id && deckSignature(d) !== sig);
     const next = [stamped, ...without];
     persistSavedDecks(next);
     set({ savedDecks: next });
@@ -177,3 +181,13 @@ export const useStore = create<AppState>((set, get) => ({
 }));
 
 export { POOL_META };
+
+/** True if a deck with the same content (commander + nonbasic cards) is already saved. */
+export function useIsDeckSaved(deck: Deck | null | undefined): boolean {
+  const savedSignatures = useStore((s) => s.savedDecks);
+  return useMemo(() => {
+    if (!deck) return false;
+    const sig = deckSignature(deck);
+    return savedSignatures.some((d) => deckSignature(d) === sig);
+  }, [deck, savedSignatures]);
+}

@@ -3,7 +3,7 @@ import type { Card, Color } from '../types/card';
 import { isCreature, isLand, isPlaneswalker } from '../types/card';
 import type { DeckEntry } from '../types/deck';
 import { validateDeck } from '../engine';
-import { useStore } from '../store/useStore';
+import { useIsDeckSaved, useStore } from '../store/useStore';
 import { ManaCost } from './common';
 import { ColorPie, ManaCurve, RarityBreakdown, RoleBreakdown } from './DeckStats';
 
@@ -43,6 +43,7 @@ export function DeckView() {
   const diagnostics = useStore((s) => s.diagnostics);
   const setPreviewCard = useStore((s) => s.setPreviewCard);
   const saveCurrentDeck = useStore((s) => s.saveCurrentDeck);
+  const isSaved = useIsDeckSaved(deck);
 
   const issues = useMemo(() => (deck ? validateDeck(deck) : []), [deck]);
 
@@ -75,7 +76,12 @@ export function DeckView() {
           </div>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={saveCurrentDeck} className="btn-ghost">💾 Save</button>
+          <button
+            onClick={saveCurrentDeck}
+            className={`btn-ghost ${isSaved ? 'ring-1 ring-emerald-500 text-emerald-300' : ''}`}
+          >
+            {isSaved ? '✓ Saved' : '💾 Save'}
+          </button>
         </div>
       </div>
 

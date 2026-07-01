@@ -16,10 +16,12 @@ refreshed with a single script so it stays current across rotations.
 
 - **Multi-deck synergy generator** — pick colors, a format and an (optional)
   archetype, and the engine enumerates **every viable deck** for that
-  permutation, each built around a different **card synergy** — e.g. for Gruul
-  you might get a +1/+1 Counters deck, a Goblins deck, a Treasure deck, a
-  go-wide Tokens deck, a Spells-matter deck, and more. Each deck is scored for
-  **viability**; weak decks are filtered out and the rest shown best-first in a
+  permutation, each built around a different **card synergy core** — e.g. for
+  Gruul you might get an Equipment & Beatdown deck, a Goblins & Sacrifice deck,
+  a +1/+1 Counters deck, a Blink & ETB deck, and dozens more. Each deck locks in
+  a real package of synergy cards first (not a quality-sorted pile with a
+  couple of cards swapped), gets scored for **viability**, and weak or
+  near-duplicate decks are filtered out — the rest shown best-first in a
   **ranked gallery**. Open any deck to edit, save and export it.
   - Format (Standard / Standard Brawl)
   - Mana colors (or auto-pick for constructed)
@@ -29,9 +31,12 @@ refreshed with a single script so it stays current across rotations.
   - Commander auto-picked to fit each Brawl deck's theme (or choose your own)
 - **Card browser** — search by name/text, filter by color, type and mana value,
   with full card art and a high-res close-up on click.
-- **Deck view** — mana curve, color-pip requirements, role breakdown
-  (removal / draw / counters / ramp / sweepers), and live legality validation.
-- **Save / load** decks locally (localStorage).
+- **Deck view** — mana curve, color-pip requirements, rarity/wildcard cost,
+  role breakdown (removal / draw / counters / ramp / sweepers), and live
+  legality validation.
+- **Save / load** decks locally (localStorage), with a clear "✓ Saved"
+  indicator on the deck itself and on its gallery card, and a Saved Decks list
+  showing rarity cost, colors and recency at a glance.
 - **MTGA import/export** — copy a deck straight into Arena's importer, or paste
   an Arena decklist back in.
 - **Vintage-fantasy UI** — old-school Magic styling: parchment & dark-wood
@@ -95,25 +100,42 @@ import-accurate Marvel Super Heroes cards and the complete pool.
 
 The meaningful difference between two real decks is their **synergy package**,
 not a few swapped cards — so the generator enumerates over **detected themes**
-rather than raw card combinations (`generateDecks` in `src/engine/build.ts`):
+(including combined dual-theme packages) and builds each one around a locked-in
+synergy core, rather than reshuffling the same quality-sorted pile with a
+different label (`generateDecks` in `src/engine/build.ts`):
 
-1. **Theme detection** (`src/engine/themes.ts`) scans the color-relevant pool
-   for synergies: static text-driven themes (+1/+1 counters, sacrifice,
-   Treasure, tokens, spells-matter/prowess, graveyard, lifegain, landfall,
-   enchantments, beatdown, flyers) **plus dynamic tribal themes** discovered
-   from creature subtypes (Goblins, Elves, Vampires, Dragons…). A `goodstuff`
-   theme (pure card quality) is always available.
-2. For each **(archetype × viable theme)** combination, a deck is built with the
-   single-deck pipeline below, with scoring **boosted toward the theme** so the
-   deck clusters around its synergy.
-3. Each deck gets a **viability score (0–100)** = a blend of synergy density,
+1. **Theme detection** (`src/engine/themes.ts`) scans the color-relevant pool for
+   16 static text-driven themes (+1/+1 counters, sacrifice, Treasure, tokens,
+   spells-matter/prowess, graveyard, lifegain, landfall, enchantments, beatdown,
+   flyers, equipment, discard/madness, reanimator, blink/ETB, burn) **plus
+   dynamic tribal themes** discovered from creature subtypes (Goblins, Elves,
+   Vampires, Dragons, Heroes…). A `goodstuff` theme (pure card quality) is
+   always available.
+2. **Composite themes**: curated pairs of independently-viable themes (e.g.
+   Sacrifice + Treasure, Goblins + Sacrifice, Equipment + Beatdown, Spells +
+   Flyers) are synthesized into combined synergy packages — this is what real
+   constructed decks actually look like, and it's the main source of variety.
+3. For each **(archetype × viable theme)** combination:
+   - **Phase A — synergy core.** ~40% of the nonland slots are locked in first,
+     ranked purely by theme fit (quality only breaks near-ties). This is what
+     makes two decks in the same colors/archetype actually read as different
+     builds instead of the same staples with a couple of cards swapped.
+   - **Phase B — support fill.** The remaining slots are filled by overall score
+     (quality + archetype fit + color fit + a smaller theme bonus), so the rest
+     of the deck stays coherent and on-curve.
+   - Some themes also nudge the target mana curve and creature/spell ratio
+     (e.g. Spells Matter skews cheaper with fewer creatures; Reanimator wants a
+     bimodal curve of cheap enablers + huge payoffs).
+4. Each deck gets a **viability score (0–100)** = a blend of synergy density,
    card quality, curve fit and mana soundness.
-4. Decks below a fixed threshold, or where the synergy didn't materialize, are
-   dropped; **near-identical decks are deduped**; the rest are ranked best-first.
+5. Decks below a fixed threshold, or where the synergy core didn't materialize,
+   are dropped; **near-identical decks are deduped** (Jaccard similarity); the
+   rest are ranked best-first.
 
 The number of decks scales with how rich the color pool is — a few for a weak
-pairing, many dozens for a strong one (and far more with the full live pool than
-with the bundled sample).
+pairing, 40–50+ for a strong one — and they're genuinely distinct: across a
+representative sample, generated decks in the same color pair share on average
+only ~10–15% of their nonland cards with each other.
 
 ## How a single deck is built
 

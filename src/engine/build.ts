@@ -32,6 +32,7 @@ import { detectRoles } from './heuristics';
 import {
   colorLabel,
   synergyContribution,
+  THEME_CARD_THRESHOLD,
   viableThemes,
   type Theme,
 } from './themes';
@@ -39,7 +40,10 @@ import {
 const FORMAT_TOTAL = 60; // Standard and Standard Brawl are both 60 (Brawl incl. commander).
 export const VIABILITY_THRESHOLD = 45; // decks scoring below this are hidden
 export const MAX_RESULTS = 50;
-const THEME_WEIGHT = 1.6; // how strongly synergy biases card selection
+const THEME_WEIGHT = 2.0; // how strongly synergy biases the support-fill pass
+const CORE_FRACTION = 0.42; // fraction of nonland slots reserved for the synergy core
+const DEDUPE_SIMILARITY = 0.65; // decks more similar than this (Jaccard) are treated as dupes
+const MAX_EVALUATIONS = 420; // safety valve on (archetype x theme) combinations per call
 
 function uid(seed: number): string {
   return `deck-${seed.toString(36)}-${Date.now().toString(36)}`;
@@ -62,7 +66,22 @@ interface SpellSelection {
   warnings: string[];
 }
 
-/** Greedy curve-and-role-aware selection of nonland spells. */
+/**
+ * Curve-and-role-aware selection of nonland spells, built in two phases:
+ *
+ *  Phase A (synergy core): when a real theme is active, lock in a target
+ *  fraction of the deck from cards ranked purely by theme fit (quality only
+ *  breaks near-ties). This is what makes two decks with the same archetype
+ *  and colors actually *read* as different builds instead of the same
+ *  quality-sorted pile with a couple of cards swapped.
+ *
+ *  Phase B (support fill): the remaining slots are filled by overall score
+ *  (quality + archetype fit + color fit + a smaller theme bonus), same as
+ *  before, so the rest of the deck is still coherent and legal.
+ *
+ * Both phases respect curve-bucket and creature/noncreature targets, relaxing
+ * them in later passes only if the pool can't fill them exactly.
+ */
 function selectSpells(
   candidates: Card[],
   profile: ArchetypeProfile,
@@ -73,12 +92,6 @@ function selectSpells(
   theme?: Theme,
 ): SpellSelection {
   const weights = defaultWeights(powerBias);
-  const scored = candidates
-    .map((card) => {
-      const themeBoost = theme ? THEME_WEIGHT * theme.detect(card) : 0;
-      return { card, score: baseScore(card, profile, colors, weights) + themeBoost };
-    })
-    .sort((a, b) => b.score - a.score);
 
   // Target counts per curve bucket and per creature/noncreature split.
   const bucketNeed: Record<string, number> = {};
@@ -92,12 +105,16 @@ function selectSpells(
   const entries: DeckEntry[] = [];
   let placed = 0;
 
-  const tryPlace = (
+  /** Place cards from `ordered`, respecting bucket/role targets, up to `cap` new cards. */
+  const placeFrom = (
+    ordered: Card[],
     respectBucket: boolean,
     respectRole: boolean,
-  ): void => {
-    for (const { card } of scored) {
-      if (placed >= spellSlots) return;
+    cap: number,
+  ): number => {
+    let placedHere = 0;
+    for (const card of ordered) {
+      if (placed >= spellSlots || placedHere >= cap) break;
       const oid = card.oracleId;
       const already = copies.get(oid) ?? 0;
       const perCardLimit = singleton ? 1 : 4;
@@ -109,9 +126,8 @@ function selectSpells(
       const roleKey = isCrea ? 'creature' : 'nonCreature';
       if (respectRole && need[roleKey] <= 0) continue;
 
-      // How many copies to add this round.
       let add = singleton ? 1 : 4 - already;
-      add = Math.min(add, spellSlots - placed);
+      add = Math.min(add, spellSlots - placed, cap - placedHere);
       if (respectBucket) add = Math.min(add, bucketNeed[bucket]);
       if (respectRole) add = Math.min(add, need[roleKey]);
       if (add <= 0) continue;
@@ -124,13 +140,38 @@ function selectSpells(
       bucketNeed[bucket] -= add;
       need[roleKey] -= add;
       placed += add;
+      placedHere += add;
     }
+    return placedHere;
   };
 
+  // ---- Phase A: lock in a synergy core, ranked by theme fit first ----
+  if (theme && theme.id !== 'goodstuff') {
+    const coreOrdered = candidates
+      .filter((c) => theme.detect(c) >= THEME_CARD_THRESHOLD)
+      .map((card) => ({ card, score: theme.detect(card) + qualityScore(card) * 0.15 }))
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.card);
+
+    let coreRemaining = Math.round(spellSlots * CORE_FRACTION);
+    coreRemaining -= placeFrom(coreOrdered, true, true, coreRemaining);
+    coreRemaining -= placeFrom(coreOrdered, false, true, coreRemaining);
+    placeFrom(coreOrdered, false, false, coreRemaining);
+  }
+
+  // ---- Phase B: fill the remainder by overall score (+ a smaller theme bonus) ----
+  const scored = candidates
+    .map((card) => {
+      const themeBoost = theme ? THEME_WEIGHT * theme.detect(card) : 0;
+      return { card, score: baseScore(card, profile, colors, weights) + themeBoost };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.card);
+
   // Pass 1: honor curve + role. Pass 2: relax curve. Pass 3: relax everything.
-  tryPlace(true, true);
-  tryPlace(false, true);
-  tryPlace(false, false);
+  placeFrom(scored, true, true, Infinity);
+  placeFrom(scored, false, true, Infinity);
+  placeFrom(scored, false, false, Infinity);
 
   const warnings: string[] = [];
   if (placed < spellSlots) {
@@ -139,6 +180,37 @@ function selectSpells(
     );
   }
   return { entries, warnings };
+}
+
+/**
+ * Nudge an archetype profile toward a theme's natural shape (e.g. Spells
+ * Matter wants fewer creatures and a cheaper curve; Reanimator wants a
+ * bimodal curve of cheap enablers + huge payoffs). Curve deltas are added
+ * then renormalized; the creature/noncreature split is shifted by a fraction
+ * of the total nonland count. Themes without nudges (most tribes, goodstuff)
+ * pass the profile through unchanged.
+ */
+function applyThemeToProfile(profile: ArchetypeProfile, theme?: Theme): ArchetypeProfile {
+  if (!theme || (!theme.curveNudge && !theme.creatureShift)) return profile;
+
+  let curve = profile.curve;
+  if (theme.curveNudge) {
+    const nudged = { ...profile.curve };
+    for (const b of CURVE_BUCKETS) nudged[b] = Math.max(0.01, nudged[b] + (theme.curveNudge[b] ?? 0));
+    const sum = CURVE_BUCKETS.reduce((s, b) => s + nudged[b], 0);
+    for (const b of CURVE_BUCKETS) nudged[b] = nudged[b] / sum;
+    curve = nudged;
+  }
+
+  let { creatures, nonCreature } = profile;
+  if (theme.creatureShift) {
+    const total = creatures + nonCreature;
+    const shiftAmt = Math.round(total * theme.creatureShift);
+    creatures = Math.max(1, creatures + shiftAmt);
+    nonCreature = Math.max(1, total - creatures);
+  }
+
+  return { ...profile, curve, creatures, nonCreature };
 }
 
 export function generateDeck(
@@ -151,7 +223,8 @@ export function generateDeck(
   const warnings: string[] = [];
 
   const baseProfile = ARCHETYPE_PROFILES[params.archetype];
-  const profile = params.format === 'brawl' ? brawlAdjust(baseProfile) : baseProfile;
+  const formatProfile = params.format === 'brawl' ? brawlAdjust(baseProfile) : baseProfile;
+  const profile = applyThemeToProfile(formatProfile, theme);
   const singleton = params.format === 'brawl';
 
   // --- Resolve commander (Brawl) and colors ---
@@ -375,7 +448,7 @@ function manaSoundness(deck: Deck, colors: Color[]): number {
 
 function computeViability(
   deck: Deck,
-  profile: ArchetypeProfile,
+  adjustedProfile: ArchetypeProfile,
   theme: Theme,
   colors: Color[],
 ): { viability: number; breakdown: ViabilityBreakdown } {
@@ -383,13 +456,18 @@ function computeViability(
   const nonlandCount = nonland.reduce((s, e) => s + e.qty, 0) || 1;
 
   // Synergy density: average theme contribution per nonland card, normalized.
+  // Combo (dual-theme) detectors sum two independent detectors, so they need
+  // a higher normalizer or every combo deck would clip to a perfect 1.0.
   const synergy = synergyContribution(theme, nonland) / nonlandCount;
-  const synergyDensity = Math.min(1, synergy / 1.6);
+  const normalizer = theme.parentIds ? 2.4 : 1.6;
+  const synergyDensity = Math.min(1, synergy / normalizer);
 
   const quality =
     nonland.reduce((s, e) => s + qualityScore(e.card) * e.qty, 0) / nonlandCount;
 
-  const curveFit = 1 - Math.min(1, curveDistance(deck, profile));
+  // Curve target reflects the theme's own curve nudges, so a deck isn't
+  // penalized for correctly leaning into e.g. Reanimator's bimodal curve.
+  const curveFit = 1 - Math.min(1, curveDistance(deck, adjustedProfile));
   const mana = manaSoundness(deck, colors);
 
   const breakdown: ViabilityBreakdown = {
@@ -399,7 +477,7 @@ function computeViability(
     manaSoundness: mana,
   };
   const viability =
-    100 * (0.45 * synergyDensity + 0.3 * quality + 0.15 * curveFit + 0.1 * mana);
+    100 * (0.5 * synergyDensity + 0.25 * quality + 0.15 * curveFit + 0.1 * mana);
   return { viability, breakdown };
 }
 
@@ -437,9 +515,10 @@ export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[
       : ARCHETYPES;
 
   const ranked: RankedDeck[] = [];
+  let evaluated = 0;
 
-  for (const archetype of archetypes) {
-    const profile =
+  outer: for (const archetype of archetypes) {
+    const baseProfile =
       params.format === 'brawl'
         ? brawlAdjust(ARCHETYPE_PROFILES[archetype])
         : ARCHETYPE_PROFILES[archetype];
@@ -452,6 +531,7 @@ export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[
       ) {
         continue;
       }
+      if (evaluated++ >= MAX_EVALUATIONS) break outer;
 
       // Deterministic seed per combo for reproducibility.
       const seed = hashSeed(`${params.format}|${colors.join('')}|${archetype}|${theme.id}`);
@@ -472,12 +552,18 @@ export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[
       }
       const { deck, diagnostics } = result;
 
-      // Did the synergy actually materialize? (goodstuff is exempt.)
-      const themeCards = deck.main.filter((e) => !isLand(e.card) && theme.detect(e.card) >= 1.5);
-      const themeCount = themeCards.reduce((s, e) => s + e.qty, 0);
-      if (theme.id !== 'goodstuff' && themeCount < 6) continue;
+      const nonland = deck.main.filter((e) => !isLand(e.card));
+      const nonlandTotal = nonland.reduce((s, e) => s + e.qty, 0);
 
-      const { viability, breakdown } = computeViability(deck, profile, theme, deck.colors);
+      // Did the synergy core actually materialize, scaled to deck size?
+      // (goodstuff is exempt — it has no "package" to require.)
+      const themeCards = nonland.filter((e) => theme.detect(e.card) >= THEME_CARD_THRESHOLD);
+      const themeCount = themeCards.reduce((s, e) => s + e.qty, 0);
+      const minThemeCards = Math.max(6, Math.round(nonlandTotal * 0.22));
+      if (theme.id !== 'goodstuff' && themeCount < minThemeCards) continue;
+
+      const adjustedProfile = applyThemeToProfile(baseProfile, theme);
+      const { viability, breakdown } = computeViability(deck, adjustedProfile, theme, deck.colors);
       if (viability < VIABILITY_THRESHOLD) continue;
 
       const synergyCards = themeCards
@@ -502,7 +588,7 @@ export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[
   ranked.sort((a, b) => b.viability - a.viability);
   const kept: RankedDeck[] = [];
   for (const r of ranked) {
-    if (kept.some((k) => deckSimilarity(k.deck, r.deck) > 0.8)) continue;
+    if (kept.some((k) => deckSimilarity(k.deck, r.deck) > DEDUPE_SIMILARITY)) continue;
     kept.push(r);
     if (kept.length >= (params.maxResults ?? MAX_RESULTS)) break;
   }

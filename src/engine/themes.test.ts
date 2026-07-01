@@ -3,12 +3,36 @@ import { POOL } from '../data/pool';
 import { generateDecks, VIABILITY_THRESHOLD } from './build';
 import { validateDeck } from './validate';
 import { viableThemes } from './themes';
-import { isBasicLand } from '../types/card';
-import type { MultiGenParams } from '../types/deck';
+import { isBasicLand, isLand } from '../types/card';
+import type { Deck, MultiGenParams, RankedDeck } from '../types/deck';
 
 function run(params: Partial<MultiGenParams>) {
   const full: MultiGenParams = { format: 'standard', colors: ['R'], ...params };
   return generateDecks(full, POOL);
+}
+
+/** Jaccard similarity of two decks' nonbasic card lists (0 = disjoint, 1 = identical). */
+function jaccard(a: Deck, b: Deck): number {
+  const setOf = (d: Deck) =>
+    new Set(d.main.filter((e) => !isBasicLand(e.card)).map((e) => e.card.oracleId));
+  const sa = setOf(a);
+  const sb = setOf(b);
+  let inter = 0;
+  for (const id of sa) if (sb.has(id)) inter++;
+  const union = sa.size + sb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+function avgPairwiseSimilarity(results: RankedDeck[]): number {
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < results.length; i++) {
+    for (let j = i + 1; j < results.length; j++) {
+      sum += jaccard(results[i].deck, results[j].deck);
+      count++;
+    }
+  }
+  return count ? sum / count : 0;
 }
 
 describe('viableThemes', () => {
@@ -87,6 +111,49 @@ describe('generateDecks', () => {
       for (const e of r.deck.main) {
         expect(e.card.colorIdentity.every((c) => allowed.has(c))).toBe(true);
       }
+    }
+  });
+
+  it('produces genuinely distinct decks, not reskins of the same pile', () => {
+    // Average pairwise Jaccard similarity across nonbasic cards should be low:
+    // decks built around different synergy cores should share only a minority
+    // of their card list, not the same quality-sorted staples over and over.
+    for (const colors of [['R'], ['R', 'G'], ['B', 'R']] as const) {
+      const results = run({ colors: [...colors] });
+      expect(results.length).toBeGreaterThan(5);
+      const avgSim = avgPairwiseSimilarity(results);
+      expect(avgSim).toBeLessThan(0.35);
+    }
+  });
+
+  it('includes composite dual-theme decks when the color pool supports it', () => {
+    const results = run({ colors: ['R', 'G'] });
+    const combos = results.filter((r) => r.themeId.includes('+'));
+    expect(combos.length).toBeGreaterThan(0);
+    // Each combo's synergy contribution should be a real sum of two detectors,
+    // reflected in a viability breakdown that isn't degenerate.
+    for (const r of combos) {
+      expect(r.breakdown.synergyDensity).toBeGreaterThan(0);
+    }
+  });
+
+  it("a theme's curve/creature nudge measurably shapes the deck", () => {
+    // Spells Matter is defined with creatureShift: -0.15 (fewer creatures,
+    // cheaper curve). Compare it against Good Stuff for the same archetype.
+    const results = run({ colors: ['U', 'R'], archetype: 'tempo' });
+    const spells = results.find((r) => r.themeId === 'spells');
+    const goodstuff = results.find((r) => r.themeId === 'goodstuff');
+    if (spells && goodstuff) {
+      const nonlandOf = (d: Deck) => d.main.filter((e) => !isLand(e.card));
+      const creatureShare = (d: Deck) => {
+        const nonland = nonlandOf(d);
+        const total = nonland.reduce((s, e) => s + e.qty, 0);
+        const creatures = nonland
+          .filter((e) => /Creature/.test(e.card.typeLine))
+          .reduce((s, e) => s + e.qty, 0);
+        return total ? creatures / total : 0;
+      };
+      expect(creatureShare(spells.deck)).toBeLessThan(creatureShare(goodstuff.deck));
     }
   });
 });
