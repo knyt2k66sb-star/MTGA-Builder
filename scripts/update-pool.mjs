@@ -136,11 +136,16 @@ async function main() {
   const trimmed = dedupe(raw.map(trim));
   trimmed.sort((a, b) => (a.edhrecRank ?? 1e9) - (b.edhrecRank ?? 1e9));
 
-  // Split: Standard-legal cards ship in the eagerly-loaded pool; everything
-  // else (Brawl-only / historic) goes into the lazy-loaded extra pool so the
-  // Standard experience never pays for it — and never draws from it.
-  const standardPool = trimmed.filter((c) => c.legalStandard);
-  const brawlExtra = trimmed.filter((c) => !c.legalStandard && c.legalBrawl);
+  // Split: cards legal in Standard OR Standard Brawl ship in the eagerly-
+  // loaded pool (a handful — Command Tower, Arcane Signet, ex-Standard cards —
+  // are Standard Brawl-legal without being Standard-legal); everything else
+  // (Brawl-100-only / historic) goes into the lazy-loaded extra pool so the
+  // Standard experience never pays for it — and never draws from it. Per-format
+  // legality flags still gate what generation may actually use.
+  const standardPool = trimmed.filter((c) => c.legalStandard || c.legalStandardBrawl);
+  const brawlExtra = trimmed.filter(
+    (c) => !c.legalStandard && !c.legalStandardBrawl && c.legalBrawl,
+  );
 
   const sets = [...new Set(standardPool.map((c) => c.set))].sort();
   const meta = {

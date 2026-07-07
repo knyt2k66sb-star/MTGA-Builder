@@ -132,7 +132,10 @@ describe('brawl (100-card) format', () => {
     }
   });
 
-  it('standard brawl never uses brawl-only cards either', () => {
+  it('standard brawl only uses standard-brawl-legal cards', () => {
+    // Note: a handful of cards (Command Tower, Arcane Signet, some rotated
+    // cards) are legal in Standard Brawl WITHOUT being Standard-legal — the
+    // check is the format's own legality flag, not Standard's.
     const results = generateDecks(
       { format: 'standardbrawl', colors: ['R'], maxResults: 10 },
       MERGED,
@@ -141,7 +144,9 @@ describe('brawl (100-card) format', () => {
     for (const r of results) {
       const all = [...r.deck.main, { card: r.deck.commander!, qty: 1 }];
       for (const e of all) {
-        if (!isBasicLand(e.card)) expect(e.card.legalStandard).toBe(true);
+        if (!isBasicLand(e.card)) {
+          expect(e.card.legalStandardBrawl ?? e.card.legalBrawl).toBe(true);
+        }
       }
     }
   });
