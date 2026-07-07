@@ -2,10 +2,13 @@ import type { Archetype, Card, Color } from '../types/card';
 import {
   ARCHETYPES,
   COLORS,
+  FORMAT_TOTALS,
   canBeCommander,
   cmcBucket,
   isBasicLand,
+  isCommanderFormat,
   isCreature,
+  isFormatLegal,
   isLand,
 } from '../types/card';
 import type {
@@ -16,6 +19,7 @@ import type {
   GenerationResult,
   MultiGenParams,
   RankedDeck,
+  RarityCaps,
   ViabilityBreakdown,
 } from '../types/deck';
 import { mulberry32 } from '../lib/prng';
@@ -37,13 +41,48 @@ import {
   type Theme,
 } from './themes';
 
-const FORMAT_TOTAL = 60; // Standard and Standard Brawl are both 60 (Brawl incl. commander).
 export const VIABILITY_THRESHOLD = 45; // decks scoring below this are hidden
-export const MAX_RESULTS = 50;
+export const MAX_RESULTS = 50; // default result count
+export const MAX_RESULTS_LIMIT = 500; // hard ceiling for the deck-count slider
 const THEME_WEIGHT = 2.0; // how strongly synergy biases the support-fill pass
 const CORE_FRACTION = 0.42; // fraction of nonland slots reserved for the synergy core
-const DEDUPE_SIMILARITY = 0.65; // decks more similar than this (Jaccard) are treated as dupes
-const MAX_EVALUATIONS = 420; // safety valve on (archetype x theme) combinations per call
+const MAX_EVALUATIONS = 2400; // safety valve on (archetype x theme x variant) builds per call
+
+/**
+ * Remaining wildcard budget by rarity during a single deck build. Commons are
+ * never capped. Shared (and mutated) across spell selection, commander choice
+ * and the mana base so the whole 60/100 cards respect the caps together.
+ */
+type RarityBudget = { mythic: number; rare: number; uncommon: number };
+
+function makeBudget(caps?: RarityCaps): RarityBudget {
+  return {
+    mythic: caps?.mythic ?? Infinity,
+    rare: caps?.rare ?? Infinity,
+    uncommon: caps?.uncommon ?? Infinity,
+  };
+}
+
+/** How many copies of `card` the budget still allows (Infinity for commons/basics). */
+function budgetAllowance(budget: RarityBudget, card: Card): number {
+  if (isBasicLand(card)) return Infinity;
+  const r = card.rarity as keyof RarityBudget;
+  return r in budget ? budget[r] : Infinity;
+}
+
+function spendBudget(budget: RarityBudget, card: Card, qty: number): void {
+  if (isBasicLand(card)) return;
+  const r = card.rarity as keyof RarityBudget;
+  if (r in budget) budget[r] = Math.max(0, budget[r] - qty);
+}
+
+/** Dedupe gets looser as the requested deck count grows — someone asking for
+ *  hundreds of decks wants breadth including close variants. */
+function dedupeThreshold(maxResults: number): number {
+  if (maxResults <= 60) return 0.65;
+  if (maxResults <= 200) return 0.75;
+  return 0.85;
+}
 
 function uid(seed: number): string {
   return `deck-${seed.toString(36)}-${Date.now().toString(36)}`;
@@ -89,9 +128,15 @@ function selectSpells(
   spellSlots: number,
   singleton: boolean,
   powerBias: number,
-  theme?: Theme,
+  theme: Theme | undefined,
+  budget: RarityBudget,
+  rng: () => number,
+  jitter = 0,
 ): SpellSelection {
   const weights = defaultWeights(powerBias);
+  // Seeded noise on scores (0 = fully deterministic). Used to spin coherent
+  // variant builds of the same archetype/theme when many decks are requested.
+  const noise = () => (jitter > 0 ? (rng() - 0.5) * jitter : 0);
 
   // Target counts per curve bucket and per creature/noncreature split.
   const bucketNeed: Record<string, number> = {};
@@ -127,7 +172,7 @@ function selectSpells(
       if (respectRole && need[roleKey] <= 0) continue;
 
       let add = singleton ? 1 : 4 - already;
-      add = Math.min(add, spellSlots - placed, cap - placedHere);
+      add = Math.min(add, spellSlots - placed, cap - placedHere, budgetAllowance(budget, card));
       if (respectBucket) add = Math.min(add, bucketNeed[bucket]);
       if (respectRole) add = Math.min(add, need[roleKey]);
       if (add <= 0) continue;
@@ -137,6 +182,7 @@ function selectSpells(
       else entries.push({ card, qty: add });
 
       copies.set(oid, already + add);
+      spendBudget(budget, card, add);
       bucketNeed[bucket] -= add;
       need[roleKey] -= add;
       placed += add;
@@ -149,7 +195,7 @@ function selectSpells(
   if (theme && theme.id !== 'goodstuff') {
     const coreOrdered = candidates
       .filter((c) => theme.detect(c) >= THEME_CARD_THRESHOLD)
-      .map((card) => ({ card, score: theme.detect(card) + qualityScore(card) * 0.15 }))
+      .map((card) => ({ card, score: theme.detect(card) + qualityScore(card) * 0.15 + noise() }))
       .sort((a, b) => b.score - a.score)
       .map((x) => x.card);
 
@@ -163,7 +209,7 @@ function selectSpells(
   const scored = candidates
     .map((card) => {
       const themeBoost = theme ? THEME_WEIGHT * theme.detect(card) : 0;
-      return { card, score: baseScore(card, profile, colors, weights) + themeBoost };
+      return { card, score: baseScore(card, profile, colors, weights) + themeBoost + noise() };
     })
     .sort((a, b) => b.score - a.score)
     .map((x) => x.card);
@@ -176,10 +222,25 @@ function selectSpells(
   const warnings: string[] = [];
   if (placed < spellSlots) {
     warnings.push(
-      `Only ${placed}/${spellSlots} nonland spells available in the chosen colors; deck padded with extra lands.`,
+      `Only ${placed}/${spellSlots} nonland spells fit the chosen colors and restrictions; deck padded with extra lands.`,
     );
   }
   return { entries, warnings };
+}
+
+/**
+ * Scale a 60-card archetype profile to the 100-card Brawl format. Land counts
+ * land in the conventional 36–42 range; the curve distribution is unchanged.
+ */
+function scaleForBrawl100(profile: ArchetypeProfile): ArchetypeProfile {
+  const factor = 100 / 60;
+  const lands = Math.min(42, Math.max(36, Math.round(profile.lands * factor)));
+  return {
+    ...profile,
+    lands,
+    creatures: Math.round(profile.creatures * factor),
+    nonCreature: Math.round(profile.nonCreature * factor),
+  };
 }
 
 /**
@@ -223,19 +284,27 @@ export function generateDeck(
   const warnings: string[] = [];
 
   const baseProfile = ARCHETYPE_PROFILES[params.archetype];
-  const formatProfile = params.format === 'brawl' ? brawlAdjust(baseProfile) : baseProfile;
+  const formatProfile =
+    params.format === 'standardbrawl'
+      ? brawlAdjust(baseProfile)
+      : params.format === 'brawl'
+        ? scaleForBrawl100(baseProfile)
+        : baseProfile;
   const profile = applyThemeToProfile(formatProfile, theme);
-  const singleton = params.format === 'brawl';
+  const singleton = isCommanderFormat(params.format);
+  const budget = makeBudget(params.rarityCaps);
 
-  // --- Resolve commander (Brawl) and colors ---
+  // --- Resolve commander (Brawl variants) and colors ---
   let commander: Card | null = null;
   let colors: Color[];
 
-  if (params.format === 'brawl') {
-    commander = resolveCommander(params, pool, rng, theme);
+  if (singleton) {
+    commander = resolveCommander(params, pool, rng, theme, budget);
     if (!commander) {
       throw new Error('No legal commander available in the chosen colors.');
     }
+    // The commander costs wildcards like any other card.
+    spendBudget(budget, commander, 1);
     colors = commander.colorIdentity.length > 0 ? commander.colorIdentity : [];
   } else {
     colors = params.colors.length > 0 ? params.colors : deriveColors(pool);
@@ -245,10 +314,8 @@ export function generateDeck(
   }
 
   // --- Filter the legal, on-color pool ---
-  const formatLegal = (c: Card): boolean =>
-    params.format === 'brawl' ? c.legalBrawl : c.legalStandard;
   const onColor = (c: Card): boolean => {
-    if (params.format === 'brawl') {
+    if (singleton) {
       // Color identity must be a subset of the commander's.
       return c.colorIdentity.every((ci) => colors.includes(ci));
     }
@@ -256,18 +323,27 @@ export function generateDeck(
     return c.colors.every((ci) => colors.includes(ci));
   };
 
-  const legalPool = pool.filter(formatLegal).filter(onColor);
+  const legalPool = pool.filter((c) => isFormatLegal(c, params.format)).filter(onColor);
+  const maxCmc = params.maxCmc ?? null;
   const spellPool = legalPool.filter(
-    (c) => !isLand(c) && (!singleton || c.oracleId !== commander?.oracleId),
+    (c) =>
+      !isLand(c) &&
+      (!singleton || c.oracleId !== commander?.oracleId) &&
+      (maxCmc == null || c.cmc <= maxCmc),
   );
   const landPool = legalPool.filter((c) => isLand(c) && !isBasicLand(c));
 
   // --- Slot math ---
-  const nonCommanderTotal = FORMAT_TOTAL - (commander ? 1 : 0);
-  const landCount = Math.min(profile.lands, nonCommanderTotal - 1);
+  const formatTotal = FORMAT_TOTALS[params.format];
+  const nonCommanderTotal = formatTotal - (commander ? 1 : 0);
+  const requestedLands = params.landCount ?? profile.lands;
+  const landCount = Math.min(
+    Math.max(Math.round(requestedLands), 10),
+    nonCommanderTotal - 1,
+  );
   const spellSlots = nonCommanderTotal - landCount;
 
-  // --- Select spells then mana base ---
+  // --- Select spells then mana base (sharing one wildcard budget) ---
   const { entries: spells, warnings: spellWarnings } = selectSpells(
     spellPool,
     profile,
@@ -276,10 +352,13 @@ export function generateDeck(
     singleton,
     params.powerBias ?? 0.5,
     theme,
+    budget,
+    rng,
+    params.jitter ?? 0,
   );
   warnings.push(...spellWarnings);
 
-  const { lands } = buildManaBase(spells, landPool, landCount, colors, singleton);
+  const { lands } = buildManaBase(spells, landPool, landCount, colors, singleton, budget);
 
   // --- Reconcile to exactly nonCommanderTotal cards ---
   const main = [...spells, ...lands];
@@ -308,21 +387,29 @@ function resolveCommander(
   pool: Card[],
   rng: () => number,
   theme?: Theme,
+  budget?: RarityBudget,
 ): Card | null {
   if (params.commanderId) {
     const found = pool.find((c) => c.oracleId === params.commanderId);
+    // An explicitly chosen commander is honored even under rarity caps.
     if (found && canBeCommander(found)) return found;
   }
   const wanted = new Set(params.colors);
-  const eligible = pool
-    .filter((c) => c.legalBrawl && canBeCommander(c))
+  let eligible = pool
+    .filter((c) => isFormatLegal(c, params.format) && canBeCommander(c))
     .filter((c) =>
       wanted.size === 0
         ? true
         : c.colorIdentity.length > 0 &&
           c.colorIdentity.every((ci) => wanted.has(ci)) &&
           c.colorIdentity.length >= Math.min(wanted.size, 1),
-    )
+    );
+  // Under rarity caps, prefer a commander the budget can actually afford.
+  if (budget) {
+    const affordable = eligible.filter((c) => budgetAllowance(budget, c) >= 1);
+    if (affordable.length > 0) eligible = affordable;
+  }
+  eligible = eligible
     // Prefer commanders that themselves advance the theme, then raw quality.
     .sort((a, b) => {
       const t = theme ? theme.detect(b) - theme.detect(a) : 0;
@@ -495,52 +582,90 @@ function deckSimilarity(a: Deck, b: Deck): number {
 /**
  * Generate every viable deck for a color/format combo: one per
  * (archetype × synergy theme), scored for viability, filtered, deduped and
- * ranked. This is the headline multi-deck generator.
+ * ranked. When more decks are requested than there are combos, additional
+ * seeded **variant** builds are spun per combo with controlled score jitter —
+ * coherent alternate takes on the same synergy, not random piles.
+ * This is the headline multi-deck generator.
  */
 export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[] {
+  const maxResults = Math.min(
+    Math.max(Math.round(params.maxResults ?? MAX_RESULTS), 1),
+    MAX_RESULTS_LIMIT,
+  );
   const colors =
     params.colors.length > 0 ? params.colors : deriveColors(pool);
 
   // Themes are detected from the color-relevant slice of the pool.
+  const singleton = isCommanderFormat(params.format);
   const colorPool = pool.filter((c) =>
-    params.format === 'brawl'
+    singleton
       ? c.colorIdentity.every((ci) => colors.includes(ci))
       : c.colors.every((ci) => colors.includes(ci)),
   );
-  const themes = viableThemes(colorPool);
+  let themes = viableThemes(colorPool);
+  if (params.themeFilter && params.themeFilter !== 'any') {
+    themes = themes.filter((t) => t.id === params.themeFilter);
+  }
 
   const archetypes: Archetype[] =
     params.archetype && params.archetype !== 'any'
       ? [params.archetype]
       : ARCHETYPES;
 
-  const ranked: RankedDeck[] = [];
-  let evaluated = 0;
-
-  outer: for (const archetype of archetypes) {
-    const baseProfile =
-      params.format === 'brawl'
-        ? brawlAdjust(ARCHETYPE_PROFILES[archetype])
-        : ARCHETYPE_PROFILES[archetype];
-
+  // Enumerate allowed (archetype, theme) combos up-front so we know how many
+  // jittered variant passes are needed to reach the requested count.
+  const combos: { archetype: Archetype; theme: Theme }[] = [];
+  for (const archetype of archetypes) {
     for (const theme of themes) {
-      // Skip theme/archetype pairs that obviously clash unless it's goodstuff.
+      // Skip theme/archetype pairs that obviously clash unless it's goodstuff
+      // or the user explicitly asked for this theme.
       if (
         theme.id !== 'goodstuff' &&
+        params.themeFilter !== theme.id &&
         !theme.archetypeLean.includes(archetype)
       ) {
         continue;
       }
+      combos.push({ archetype, theme });
+    }
+  }
+  if (combos.length === 0) return [];
+
+  // Variant passes: pass 0 is deterministic; later passes add growing seeded
+  // jitter. Overshoot the request a bit so dedupe still leaves enough.
+  const variantPasses = Math.min(
+    8,
+    Math.max(1, Math.ceil((maxResults * 1.6) / combos.length)),
+  );
+
+  const ranked: RankedDeck[] = [];
+  let evaluated = 0;
+
+  outer: for (let variant = 0; variant < variantPasses; variant++) {
+    for (const { archetype, theme } of combos) {
       if (evaluated++ >= MAX_EVALUATIONS) break outer;
 
-      // Deterministic seed per combo for reproducibility.
-      const seed = hashSeed(`${params.format}|${colors.join('')}|${archetype}|${theme.id}`);
+      const baseProfile =
+        params.format === 'standardbrawl'
+          ? brawlAdjust(ARCHETYPE_PROFILES[archetype])
+          : params.format === 'brawl'
+            ? scaleForBrawl100(ARCHETYPE_PROFILES[archetype])
+            : ARCHETYPE_PROFILES[archetype];
+
+      // Deterministic seed per combo+variant for reproducibility.
+      const seed = hashSeed(
+        `${params.format}|${colors.join('')}|${archetype}|${theme.id}|v${variant}`,
+      );
       const single: GenParams = {
         format: params.format,
         archetype,
         colors,
         commanderId: params.commanderId ?? null,
         powerBias: params.powerBias ?? 0.5,
+        rarityCaps: params.rarityCaps,
+        maxCmc: params.maxCmc,
+        landCount: params.landCount,
+        jitter: variant === 0 ? 0 : 0.5 + 0.35 * variant,
         seed,
       };
 
@@ -582,15 +707,18 @@ export function generateDecks(params: MultiGenParams, pool: Card[]): RankedDeck[
         breakdown,
       });
     }
+    // Stop spinning variants once we clearly have enough raw candidates.
+    if (ranked.length >= maxResults * 1.6) break;
   }
 
   // Rank best-first, then dedupe near-identical decks (keep higher score).
   ranked.sort((a, b) => b.viability - a.viability);
+  const threshold = dedupeThreshold(maxResults);
   const kept: RankedDeck[] = [];
   for (const r of ranked) {
-    if (kept.some((k) => deckSimilarity(k.deck, r.deck) > DEDUPE_SIMILARITY)) continue;
+    if (kept.some((k) => deckSimilarity(k.deck, r.deck) > threshold)) continue;
     kept.push(r);
-    if (kept.length >= (params.maxResults ?? MAX_RESULTS)) break;
+    if (kept.length >= maxResults) break;
   }
   return kept;
 }

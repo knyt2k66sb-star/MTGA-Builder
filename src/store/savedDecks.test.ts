@@ -28,7 +28,7 @@ describe('deckSignature', () => {
 
   it('differs across formats even with an identical main deck', () => {
     const { deck: a } = generateDeck(params, POOL);
-    const fakeBrawl = { ...a, format: 'brawl' as const };
+    const fakeBrawl = { ...a, format: 'standardbrawl' as const };
     expect(deckSignature(a)).not.toBe(deckSignature(fakeBrawl));
   });
 });

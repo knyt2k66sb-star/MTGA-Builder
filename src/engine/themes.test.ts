@@ -103,7 +103,7 @@ describe('generateDecks', () => {
   });
 
   it('generates multiple brawl decks within commander identity', () => {
-    const results = run({ format: 'brawl', colors: ['B'] });
+    const results = run({ format: 'standardbrawl', colors: ['B'] });
     expect(results.length).toBeGreaterThan(0);
     for (const r of results) {
       expect(r.deck.commander).not.toBeNull();

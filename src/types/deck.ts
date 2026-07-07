@@ -23,6 +23,17 @@ export interface Deck {
   updatedAt: string;
 }
 
+/**
+ * Per-rarity card limits (counting quantities, nonbasic lands included since
+ * they cost wildcards too). null/undefined = unlimited. Commons are never
+ * capped — restricting to "commons only" is done by zeroing the other three.
+ */
+export interface RarityCaps {
+  mythic?: number | null;
+  rare?: number | null;
+  uncommon?: number | null;
+}
+
 export interface GenParams {
   format: Format;
   archetype: Archetype;
@@ -32,6 +43,14 @@ export interface GenParams {
   seed?: number;
   /** 0..1 — how strongly card quality (edhrec rank) is weighted. */
   powerBias?: number;
+  /** Per-rarity wildcard budget the deck must fit inside. */
+  rarityCaps?: RarityCaps;
+  /** Exclude nonland cards above this mana value. */
+  maxCmc?: number | null;
+  /** Override the archetype's land count. */
+  landCount?: number | null;
+  /** Score jitter amplitude (0 = deterministic). Used for variant builds. */
+  jitter?: number;
 }
 
 /** Diagnostics returned alongside a generated deck for UI display. */
@@ -60,7 +79,16 @@ export interface MultiGenParams {
   archetype?: Archetype | 'any';
   commanderId?: string | null;
   powerBias?: number;
+  /** How many decks to return (default 50, clamped to 1..500). */
   maxResults?: number;
+  /** Per-rarity wildcard budget every generated deck must fit inside. */
+  rarityCaps?: RarityCaps;
+  /** Exclude nonland cards above this mana value. */
+  maxCmc?: number | null;
+  /** Override the archetype land count for every generated deck. */
+  landCount?: number | null;
+  /** Only build around this theme id ('any' or omitted = all viable themes). */
+  themeFilter?: string | 'any';
 }
 
 export interface ViabilityBreakdown {

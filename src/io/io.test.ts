@@ -6,7 +6,7 @@ import { parseArenaText, parseLine } from './mtgaImport';
 import type { GenParams } from '../types/deck';
 
 const stdParams: GenParams = { format: 'standard', archetype: 'aggro', colors: ['R'], seed: 7 };
-const brawlParams: GenParams = { format: 'brawl', archetype: 'midrange', colors: ['B'], seed: 7 };
+const brawlParams: GenParams = { format: 'standardbrawl', archetype: 'midrange', colors: ['B'], seed: 7 };
 
 describe('parseLine', () => {
   it('parses a full line with set + number', () => {
@@ -74,8 +74,8 @@ describe('round-trip export -> import', () => {
   it('round-trips a brawl deck including the commander', () => {
     const { deck } = generateDeck(brawlParams, POOL);
     const text = deckToArenaText(deck);
-    const { deck: imported } = parseArenaText(text, POOL, 'brawl');
+    const { deck: imported } = parseArenaText(text, POOL, 'standardbrawl');
     expect(imported.commander?.name).toBe(deck.commander?.name);
-    expect(imported.format).toBe('brawl');
+    expect(imported.format).toBe('standardbrawl');
   });
 });

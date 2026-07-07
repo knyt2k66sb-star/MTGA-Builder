@@ -133,13 +133,23 @@ export function parseArenaText(
   }
 
   const colors = deriveDeckColors(main, commander);
-  const isBrawl = format === 'brawl' || commander != null;
   const now = new Date().toISOString();
+
+  // Infer the format: a commander means a Brawl variant, and a list of ~100
+  // cards means the full 100-card Brawl rather than 60-card Standard Brawl.
+  const mainTotal = main.reduce((s, e) => s + e.qty, 0);
+  const inferred: Format = commander
+    ? mainTotal + 1 >= 90
+      ? 'brawl'
+      : 'standardbrawl'
+    : format === 'standard'
+      ? 'standard'
+      : format;
 
   const deck: Deck = {
     id: `import-${Date.now().toString(36)}`,
     name: commander ? `${commander.name} Brawl` : 'Imported Deck',
-    format: isBrawl ? 'brawl' : 'standard',
+    format: commander ? inferred : 'standard',
     commander,
     main,
     sideboard,

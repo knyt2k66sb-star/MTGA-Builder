@@ -67,7 +67,7 @@ describe('standard generation', () => {
 
 describe('brawl generation', () => {
   it('builds a 60-card singleton deck with a legal commander', () => {
-    const { deck } = gen({ format: 'brawl', colors: ['B'], archetype: 'midrange' });
+    const { deck } = gen({ format: 'standardbrawl', colors: ['B'], archetype: 'midrange' });
     expect(deck.commander).not.toBeNull();
 
     const total = deck.main.reduce((s, e) => s + e.qty, 0) + (deck.commander ? 1 : 0);
@@ -83,7 +83,7 @@ describe('brawl generation', () => {
   });
 
   it('keeps all cards within the commander color identity', () => {
-    const { deck } = gen({ format: 'brawl', colors: ['G', 'U'], archetype: 'ramp' });
+    const { deck } = gen({ format: 'standardbrawl', colors: ['G', 'U'], archetype: 'ramp' });
     const allowed = new Set(deck.commander!.colorIdentity);
     for (const e of deck.main) {
       expect(e.card.colorIdentity.every((c) => allowed.has(c))).toBe(true);

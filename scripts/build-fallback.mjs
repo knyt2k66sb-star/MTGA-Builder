@@ -77,7 +77,8 @@ function mk(d) {
     layout: d.layout ?? 'normal',
     image: `https://api.scryfall.com/cards/named?format=image&version=normal&exact=${encodeURIComponent(d.n)}`,
     imageLarge: `https://api.scryfall.com/cards/named?format=image&version=large&exact=${encodeURIComponent(d.n)}`,
-    legalStandard: true,
+    legalStandard: d.historicOnly ? false : true,
+    legalStandardBrawl: d.historicOnly || d.banBrawl ? false : true,
     legalBrawl: d.banBrawl ? false : true,
   };
 }
@@ -259,7 +260,37 @@ const defs = [
   { n: 'Storm, Mistress of Elements', m: '{2}{U}', t: 'Legendary Creature — Hero Mutant', o: 'Flying. Whenever you cast an instant or sorcery, Storm deals 2 damage to each opponent.', p: '2', tough: '3', k: ['Flying'], r: 420, set: 'MSH', num: 8 },
 ];
 
+// ============================================================
+// HISTORIC-ONLY sample (Brawl-100 pool, NOT Standard-legal). Real data comes
+// from `npm run update-pool`; these keep the 100-card format usable offline.
+// ============================================================
+const extraDefs = [
+  { n: 'Baral, Chief of Compliance', m: '{1}{U}', t: 'Legendary Creature — Human Wizard', o: 'Instant and sorcery spells you cast cost {1} less. Whenever a spell is countered, you may draw a card, then discard a card.', p: '1', tough: '3', r: 350, set: 'AER', num: 30, historicOnly: true },
+  { n: 'Muxus, Goblin Grandee', m: '{4}{R}{R}', t: 'Legendary Creature — Goblin Noble', o: 'When Muxus enters, reveal the top six cards of your library and put all Goblins among them onto the battlefield.', p: '4', tough: '4', r: 400, set: 'JMP', num: 21, historicOnly: true },
+  { n: 'Thassa, Deep-Dwelling', m: '{2}{U}{U}', t: 'Legendary Enchantment Creature — God', o: 'Indestructible. At the beginning of your end step, exile up to one target creature you control, then return it to the battlefield.', p: '6', tough: '5', r: 250, set: 'THB', num: 71, historicOnly: true },
+  { n: 'Bolas\'s Citadel', m: '{3}{B}{B}{B}', t: 'Legendary Artifact', o: 'You may look at the top card of your library. You may play the top card of your library by paying life equal to its mana value.', r: 300, set: 'WAR', num: 79, historicOnly: true },
+  { n: 'Torbran, Thane of Red Fell', m: '{1}{R}{R}{R}', t: 'Legendary Creature — Dwarf Noble', o: 'If a red source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead.', p: '2', tough: '4', r: 450, set: 'ELD', num: 147, historicOnly: true },
+  { n: 'Nissa, Who Shakes the World', m: '{3}{G}{G}', t: 'Legendary Planeswalker — Nissa', o: 'Whenever you tap a Forest for mana, add an additional {G}. +1: Untap target land you control; it becomes a 3/3 Elemental.', r: 380, set: 'WAR', num: 169, historicOnly: true },
+  { n: 'Teferi, Hero of Dominaria', m: '{3}{W}{U}', t: 'Legendary Planeswalker — Teferi', o: '+1: Draw a card, then untap up to two lands. -3: Put target nonland permanent into its owner\'s library third from the top.', r: 200, set: 'DOM', num: 207, historicOnly: true, ci: ['W', 'U'] },
+  { n: 'Korvold, Fae-Cursed King', m: '{2}{B}{R}{G}', t: 'Legendary Creature — Dragon Noble', o: 'Flying. Whenever you sacrifice a permanent, put a +1/+1 counter on Korvold and draw a card.', p: '4', tough: '4', k: ['Flying'], r: 90, set: 'ELD', num: 329, historicOnly: true, ci: ['B', 'R', 'G'] },
+  { n: 'Fabled Passage', m: '', t: 'Land', o: '{T}, Sacrifice Fabled Passage: Search your library for a basic land and put it onto the battlefield tapped.', r: 500, set: 'ELD', num: 244, historicOnly: true },
+  { n: 'Steam Vents', m: '', t: 'Land', o: '{T}: Add {U} or {R}. As Steam Vents enters, you may pay 2 life. If you don\'t, it enters tapped.', prod: ['U', 'R'], r: 550, set: 'GRN', num: 257, historicOnly: true },
+  { n: 'Blood Crypt', m: '', t: 'Land', o: '{T}: Add {B} or {R}. As Blood Crypt enters, you may pay 2 life. If you don\'t, it enters tapped.', prod: ['B', 'R'], r: 560, set: 'RNA', num: 245, historicOnly: true },
+  { n: 'Embercleave', m: '{4}{R}{R}', t: 'Legendary Artifact — Equipment', o: 'Flash. This spell costs {1} less for each attacking creature you control. Equipped creature gets +1/+1 and has double strike and trample. Equip {3}.', r: 280, set: 'ELD', num: 120, historicOnly: true },
+];
+
 function main() {
+  const extraOnly = process.argv.includes('--extra-only');
+  mkdirSync(DATA_DIR, { recursive: true });
+
+  const extra = extraDefs.map(mk);
+  writeFileSync(resolve(DATA_DIR, 'brawl-extra-pool.json'), JSON.stringify(extra));
+
+  if (extraOnly) {
+    console.log(`Wrote brawl-extra fallback only: ${extra.length} historic cards (standard pool untouched).`);
+    return;
+  }
+
   const cards = defs.map(mk);
   // Basic-quality sanity sort by edhrec rank.
   cards.sort((a, b) => (a.edhrecRank ?? 1e9) - (b.edhrecRank ?? 1e9));
@@ -268,14 +299,14 @@ function main() {
   const meta = {
     updated: new Date().toISOString(),
     count: cards.length,
+    brawlExtraCount: extra.length,
     sets,
     source: 'fallback',
   };
 
-  mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(resolve(DATA_DIR, 'standard-pool.json'), JSON.stringify(cards));
   writeFileSync(resolve(DATA_DIR, 'pool-meta.json'), JSON.stringify(meta, null, 2));
-  console.log(`Wrote curated fallback pool: ${cards.length} cards, ${sets.length} sets.`);
+  console.log(`Wrote curated fallback pool: ${cards.length} cards, ${sets.length} sets, +${extra.length} brawl-extra.`);
 }
 
 main();

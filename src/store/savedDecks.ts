@@ -27,7 +27,16 @@ export function loadSavedDecks(): Deck[] {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
     const decks = JSON.parse(raw) as Deck[];
-    return Array.isArray(decks) ? decks : [];
+    if (!Array.isArray(decks)) return [];
+    // Migration: before the 100-card format existed, `brawl` meant the
+    // 60-card Standard Brawl. Old saved decks are always ~60 cards.
+    for (const d of decks) {
+      if ((d.format as string) === 'brawl') {
+        const total = d.main.reduce((s, e) => s + e.qty, 0) + (d.commander ? 1 : 0);
+        if (total < 90) d.format = 'standardbrawl';
+      }
+    }
+    return decks;
   } catch {
     return [];
   }

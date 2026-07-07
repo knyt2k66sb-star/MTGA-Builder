@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { canBeCommander } from '../types/card';
-import { useStore } from '../store/useStore';
+import { canBeCommander, isFormatLegal } from '../types/card';
+import { useFormatPool, useStore } from '../store/useStore';
 import { ManaCost } from './common';
 
 // Cap how many commander buttons render at once (the eligible list can be huge,
@@ -8,23 +8,24 @@ import { ManaCost } from './common';
 const RENDER_CAP = 60;
 
 export function CommanderPicker() {
-  const pool = useStore((s) => s.pool);
+  const format = useStore((s) => s.format);
   const colors = useStore((s) => s.colors);
   const commanderId = useStore((s) => s.commanderId);
   const setCommander = useStore((s) => s.setCommander);
+  const pool = useFormatPool(format);
   const [query, setQuery] = useState('');
 
   const eligible = useMemo(() => {
     const wanted = new Set(colors);
     return pool
-      .filter((c) => c.legalBrawl && canBeCommander(c))
+      .filter((c) => isFormatLegal(c, format) && canBeCommander(c))
       .filter((c) =>
         wanted.size === 0
           ? true
           : c.colorIdentity.length > 0 && c.colorIdentity.every((ci) => wanted.has(ci)),
       )
       .sort((a, b) => (a.edhrecRank ?? 1e9) - (b.edhrecRank ?? 1e9));
-  }, [pool, colors]);
+  }, [pool, format, colors]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

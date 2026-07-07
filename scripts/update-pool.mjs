@@ -1,8 +1,14 @@
 #!/usr/bin/env node
-// Fetch the current Standard + Arena card pool from Scryfall and write a
-// trimmed snapshot to src/data/standard-pool.json. Re-run after a rotation to
-// refresh the pool — Scryfall's legality data is live, so the query below
-// always reflects the current Standard environment.
+// Fetch the current Arena card pools from Scryfall and write trimmed
+// snapshots to src/data/:
+//   standard-pool.json     — Standard-legal cards (Standard + Standard Brawl)
+//   brawl-extra-pool.json  — Brawl(100)-legal cards NOT in Standard (lazy-loaded
+//                            by the app only when the 100-card format is used,
+//                            so Standard generation can never see them)
+//   pool-meta.json         — counts, sets, sync date
+//
+// Re-run after a rotation or new set — Scryfall's legality data is live, and
+// `legal:brawl` already reflects the competitive Brawl ban list.
 //
 //   node scripts/update-pool.mjs
 //
@@ -13,7 +19,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(__dirname, '../src/data');
 
-const QUERY = 'legal:standard game:arena -is:alchemy';
+// Two queries because neither is a superset: a card can be Standard-legal but
+// banned in Brawl, and the Brawl pool is far larger than Standard.
+const QUERIES = [
+  'legal:standard game:arena -is:alchemy',
+  'legal:brawl game:arena -is:alchemy',
+];
 const HEADERS = {
   'User-Agent': 'MTGABuilder/1.0 (https://github.com/knyt2k66sb-star/mtga-builder)',
   Accept: 'application/json',
@@ -79,14 +90,14 @@ function trim(card) {
     image: frontImage(card, 'normal'),
     imageLarge: frontImage(card, 'large') ?? frontImage(card, 'normal'),
     legalStandard: card.legalities?.standard === 'legal',
-    legalBrawl:
-      card.legalities?.brawl === 'legal' || card.legalities?.standardbrawl === 'legal',
+    legalStandardBrawl: card.legalities?.standardbrawl === 'legal',
+    legalBrawl: card.legalities?.brawl === 'legal',
   };
 }
 
-async function fetchAll() {
+async function fetchAll(query) {
   const cards = [];
-  let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(QUERY)}&unique=cards`;
+  let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=cards`;
   let page = 0;
   while (url) {
     page += 1;
@@ -113,27 +124,40 @@ function dedupe(trimmed) {
 }
 
 async function main() {
-  console.log(`Querying Scryfall: ${QUERY}`);
-  const raw = await fetchAll();
-  // The query already restricts to `game:arena`, so every result is on Arena.
+  const raw = [];
+  for (const query of QUERIES) {
+    console.log(`Querying Scryfall: ${query}`);
+    raw.push(...(await fetchAll(query)));
+  }
+  // The queries already restrict to `game:arena`, so every result is on Arena.
   // Do NOT additionally require a populated `arena_id`: Scryfall lags a few days
   // on `arena_id` for brand-new sets (e.g. Marvel Super Heroes on release week),
   // and dropping those would wrongly exclude the newest set's cards.
   const trimmed = dedupe(raw.map(trim));
   trimmed.sort((a, b) => (a.edhrecRank ?? 1e9) - (b.edhrecRank ?? 1e9));
 
-  const sets = [...new Set(trimmed.map((c) => c.set))].sort();
+  // Split: Standard-legal cards ship in the eagerly-loaded pool; everything
+  // else (Brawl-only / historic) goes into the lazy-loaded extra pool so the
+  // Standard experience never pays for it — and never draws from it.
+  const standardPool = trimmed.filter((c) => c.legalStandard);
+  const brawlExtra = trimmed.filter((c) => !c.legalStandard && c.legalBrawl);
+
+  const sets = [...new Set(standardPool.map((c) => c.set))].sort();
   const meta = {
     updated: new Date().toISOString(),
-    count: trimmed.length,
+    count: standardPool.length,
+    brawlExtraCount: brawlExtra.length,
     sets,
     source: 'scryfall',
   };
 
   mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(resolve(DATA_DIR, 'standard-pool.json'), JSON.stringify(trimmed));
+  writeFileSync(resolve(DATA_DIR, 'standard-pool.json'), JSON.stringify(standardPool));
+  writeFileSync(resolve(DATA_DIR, 'brawl-extra-pool.json'), JSON.stringify(brawlExtra));
   writeFileSync(resolve(DATA_DIR, 'pool-meta.json'), JSON.stringify(meta, null, 2));
-  console.log(`Wrote ${trimmed.length} cards across ${sets.length} sets to src/data/.`);
+  console.log(
+    `Wrote ${standardPool.length} Standard cards (${sets.length} sets) + ${brawlExtra.length} Brawl-extra cards to src/data/.`,
+  );
 }
 
 main().catch((err) => {

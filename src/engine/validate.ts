@@ -1,5 +1,11 @@
-import type { Card, Format } from '../types/card';
-import { canBeCommander, isBasicLand } from '../types/card';
+import {
+  FORMAT_LABELS,
+  FORMAT_TOTALS,
+  canBeCommander,
+  isBasicLand,
+  isCommanderFormat,
+  isFormatLegal,
+} from '../types/card';
 import type { Deck } from '../types/deck';
 
 export interface ValidationIssue {
@@ -7,34 +13,34 @@ export interface ValidationIssue {
   message: string;
 }
 
-const DECK_SIZE: Record<Format, number> = {
-  standard: 60, // minimum (we always build exactly 60)
-  brawl: 60, // exactly, including commander
-};
-
 /**
  * Validate a deck against its format rules. Returns issues; an empty list of
  * `error`-level issues means the deck is legal to import.
  */
 export function validateDeck(deck: Deck): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const singleton = deck.format === 'brawl';
+  const singleton = isCommanderFormat(deck.format);
+  const target = FORMAT_TOTALS[deck.format];
+  const label = FORMAT_LABELS[deck.format];
 
   const mainTotal = deck.main.reduce((s, e) => s + e.qty, 0);
   const total = mainTotal + (deck.commander ? 1 : 0);
 
   // --- Size ---
-  if (deck.format === 'standard' && total < DECK_SIZE.standard) {
-    issues.push({ level: 'error', message: `Standard decks need at least 60 cards (has ${total}).` });
+  if (deck.format === 'standard' && total < target) {
+    issues.push({ level: 'error', message: `Standard decks need at least ${target} cards (has ${total}).` });
   }
-  if (deck.format === 'brawl' && total !== DECK_SIZE.brawl) {
-    issues.push({ level: 'error', message: `Standard Brawl decks must be exactly 60 cards incl. commander (has ${total}).` });
+  if (singleton && total !== target) {
+    issues.push({
+      level: 'error',
+      message: `${label} decks must be exactly ${target} cards incl. commander (has ${total}).`,
+    });
   }
 
   // --- Commander ---
-  if (deck.format === 'brawl') {
+  if (singleton) {
     if (!deck.commander) {
-      issues.push({ level: 'error', message: 'Brawl deck has no commander.' });
+      issues.push({ level: 'error', message: `${label} deck has no commander.` });
     } else if (!canBeCommander(deck.commander)) {
       issues.push({ level: 'error', message: `${deck.commander.name} cannot be a commander.` });
     }
@@ -50,8 +56,8 @@ export function validateDeck(deck: Deck): ValidationIssue[] {
     }
   }
 
-  // --- Color identity (Brawl) ---
-  if (deck.format === 'brawl' && deck.commander) {
+  // --- Color identity (Brawl variants) ---
+  if (singleton && deck.commander) {
     const allowed = new Set(deck.commander.colorIdentity);
     for (const { card } of deck.main) {
       const offending = card.colorIdentity.filter((c) => !allowed.has(c));
@@ -68,11 +74,12 @@ export function validateDeck(deck: Deck): ValidationIssue[] {
   // (Arena availability isn't re-checked here: the pool is sourced from a
   // `game:arena` query, and Scryfall lags on `arena_id` for new sets, so a
   // missing id is not a reliable "unavailable" signal and only adds noise.)
-  const checkLegal = (card: Card): boolean =>
-    deck.format === 'brawl' ? card.legalBrawl : card.legalStandard;
-  for (const { card } of deck.main) {
-    if (!isBasicLand(card) && !checkLegal(card)) {
-      issues.push({ level: 'error', message: `${card.name} is not legal in ${deck.format}.` });
+  const cardsToCheck = deck.commander
+    ? [...deck.main, { card: deck.commander, qty: 1 }]
+    : deck.main;
+  for (const { card } of cardsToCheck) {
+    if (!isBasicLand(card) && !isFormatLegal(card, deck.format)) {
+      issues.push({ level: 'error', message: `${card.name} is not legal in ${label}.` });
     }
   }
 

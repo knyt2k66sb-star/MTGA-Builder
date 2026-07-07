@@ -19,7 +19,39 @@ export const BASIC_LAND_FOR_COLOR: Record<Color, string> = {
   G: 'Forest',
 };
 
-export type Format = 'standard' | 'brawl';
+/**
+ * Supported formats:
+ * - standard:      60-card constructed, up to 4 copies.
+ * - standardbrawl: 60-card singleton + commander, Standard pool.
+ * - brawl:         100-card singleton + commander, full Arena pool with the
+ *                  competitive Brawl ban list (Scryfall `brawl` legality).
+ */
+export type Format = 'standard' | 'standardbrawl' | 'brawl';
+
+export const FORMAT_LABELS: Record<Format, string> = {
+  standard: 'Standard',
+  standardbrawl: 'Standard Brawl',
+  brawl: 'Brawl (100)',
+};
+
+/** Total deck size per format (commander counts toward the total). */
+export const FORMAT_TOTALS: Record<Format, number> = {
+  standard: 60,
+  standardbrawl: 60,
+  brawl: 100,
+};
+
+/** Formats that are singleton and use a commander. */
+export function isCommanderFormat(format: Format): boolean {
+  return format !== 'standard';
+}
+
+/** Is this card legal in the given format? Tolerates old cached cards that predate `legalStandardBrawl`. */
+export function isFormatLegal(card: Card, format: Format): boolean {
+  if (format === 'standard') return card.legalStandard;
+  if (format === 'standardbrawl') return card.legalStandardBrawl ?? card.legalBrawl;
+  return card.legalBrawl;
+}
 
 export type Archetype =
   | 'aggro'
@@ -82,12 +114,17 @@ export interface Card {
   /** Higher-resolution image URL for the card close-up. */
   imageLarge: string | null;
   legalStandard: boolean;
+  /** Legal in 60-card Standard Brawl. Optional: older cached pools predate this field. */
+  legalStandardBrawl?: boolean;
+  /** Legal in 100-card Brawl (Scryfall `brawl` — reflects the competitive Brawl ban list). */
   legalBrawl: boolean;
 }
 
 export interface PoolMeta {
   updated: string;
   count: number;
+  /** Cards in the lazy-loaded brawl-extra pool (non-Standard, Brawl-legal). */
+  brawlExtraCount?: number;
   sets: string[];
   source: 'scryfall' | 'fallback';
 }
@@ -115,16 +152,12 @@ export function isLegendary(card: Card): boolean {
 }
 
 /**
- * Can this card be a Standard Brawl commander? A legendary creature, or a
- * planeswalker that explicitly says it can be your commander.
+ * Can this card be a Brawl commander? Both Brawl variants allow any legendary
+ * creature or any legendary planeswalker to command the deck.
  */
 export function canBeCommander(card: Card): boolean {
   if (!isLegendary(card)) return false;
-  if (isCreature(card)) return true;
-  if (isPlaneswalker(card) && /can be your commander/i.test(card.oracleText)) {
-    return true;
-  }
-  return false;
+  return isCreature(card) || isPlaneswalker(card);
 }
 
 /** CMC bucket label used for curve display & targeting. */

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Card } from '../types/card';
 import { isLand } from '../types/card';
+import { matchesCardText } from '../lib/search';
 import { useStore } from '../store/useStore';
 import { CardTile } from './CardTile';
 
@@ -27,12 +28,10 @@ export function CardGrid() {
   useEffect(() => setLimit(PAGE_SIZE), [filters]);
 
   const results = useMemo(() => {
-    const text = filters.text.trim().toLowerCase();
+    const text = filters.text.trim();
     return pool
       .filter((c) => {
-        if (text && !c.name.toLowerCase().includes(text) && !c.oracleText.toLowerCase().includes(text)) {
-          return false;
-        }
+        if (text && !matchesCardText(c, text)) return false;
         if (filters.colors.length > 0) {
           // Card must contain at least one selected color (or be colorless if none chosen).
           const hit = filters.colors.some((col) => c.colors.includes(col));

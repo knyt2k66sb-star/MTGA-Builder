@@ -41,6 +41,17 @@ export function makeBasicLand(color: Color): Card {
 }
 
 /**
+ * Remaining wildcard budget by rarity (see engine/build.ts). Nonbasic lands
+ * cost wildcards, so the mana base must respect — and spend from — the same
+ * budget as the spells. Basics are always free.
+ */
+interface RarityBudgetLike {
+  mythic: number;
+  rare: number;
+  uncommon: number;
+}
+
+/**
  * Construct a mana base for the chosen spells.
  *
  * @param spells       chosen nonland entries (drives pip requirements)
@@ -48,6 +59,7 @@ export function makeBasicLand(color: Color): Card {
  * @param landCount    total lands to produce
  * @param colors       deck colors
  * @param singleton    Brawl: at most one of each nonbasic land
+ * @param budget       optional shared wildcard budget (mutated as lands are added)
  */
 export function buildManaBase(
   spells: DeckEntry[],
@@ -55,6 +67,7 @@ export function buildManaBase(
   landCount: number,
   colors: Color[],
   singleton: boolean,
+  budget?: RarityBudgetLike,
 ): ManaBaseResult {
   const lands: DeckEntry[] = [];
   const usedColors = colors.length > 0 ? colors : [];
@@ -75,14 +88,24 @@ export function buildManaBase(
     .filter((c) => c.producedMana.some((m) => usedColors.includes(m)))
     .sort((a, b) => landScore(b, usedColors) - landScore(a, usedColors));
 
+  const allowance = (card: Card): number => {
+    if (!budget) return Infinity;
+    const r = card.rarity as keyof RarityBudgetLike;
+    return r in budget ? budget[r] : Infinity;
+  };
+
   let nonbasicCount = 0;
   for (const land of candidates) {
     if (nonbasicCount >= nonbasicTarget || lands.length >= landCount) break;
     const maxCopies = singleton ? 1 : Math.min(4, landCount - lands.length);
-    const copies = Math.min(maxCopies, nonbasicTarget - nonbasicCount);
+    const copies = Math.min(maxCopies, nonbasicTarget - nonbasicCount, allowance(land));
     if (copies <= 0) continue;
     lands.push({ card: land, qty: copies });
     nonbasicCount += copies;
+    if (budget) {
+      const r = land.rarity as keyof RarityBudgetLike;
+      if (r in budget) budget[r] = Math.max(0, budget[r] - copies);
+    }
   }
 
   // --- Basics, proportional to residual pip requirements ---

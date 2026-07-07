@@ -1,14 +1,18 @@
 # MTGA Builder
 
 A browser app for building **Magic: The Gathering Arena** decks with a focus on
-**algorithmic, parameter-driven deck generation**. It supports two formats:
+**algorithmic, parameter-driven deck generation**. It supports three formats:
 
 - **Standard** — 60-card constructed, up to 4 copies of a card.
-- **Standard Brawl** — 60-card singleton with a legendary commander, restricted
-  to the commander's color identity.
+- **Standard Brawl** — 60-card singleton with a commander, Standard pool.
+- **Brawl (100)** — 100-card singleton with a commander, drawing from the full
+  Arena pool under the competitive Brawl ban list (Scryfall `brawl` legality).
 
-The card pool is limited to **Standard-legal, Arena-available** cards and is
-refreshed with a single script so it stays current across rotations.
+Standard and Standard Brawl use only the **Standard-legal, Arena-available**
+pool; the wider Brawl(100) pool ships as a **separate, lazily-loaded file** so
+Standard generation can never draw from it (and Standard users never download
+it). Both pools refresh with a single script so they stay current across
+rotations and new sets.
 
 ![stack](https://img.shields.io/badge/stack-React%20%2B%20TypeScript%20%2B%20Vite-blue)
 
@@ -23,12 +27,26 @@ refreshed with a single script so it stays current across rotations.
   couple of cards swapped), gets scored for **viability**, and weak or
   near-duplicate decks are filtered out — the rest shown best-first in a
   **ranked gallery**. Open any deck to edit, save and export it.
-  - Format (Standard / Standard Brawl)
+  - Format (Standard / Standard Brawl / Brawl 100)
   - Mana colors (or auto-pick for constructed)
   - Archetype filter: **Any** (explore all) or one of aggro / tempo / midrange /
     control / ramp / combo
   - Power bias (card quality vs. archetype fit)
   - Commander auto-picked to fit each Brawl deck's theme (or choose your own)
+  - **Deck count slider** — 10 to 500 decks per run; past the base
+    archetype×theme combinations, seeded *variant builds* spin coherent
+    alternate takes on each synergy
+  - **One-tap presets** — Balanced, Competitive, Synergy Max, Wildcard Saver
+    (≤5 rares, 0 mythics), Budget Brew, Commons Only, Cheap & Fast, Big Mana
+  - **Veteran fine-tuning** — per-rarity wildcard caps (e.g. "max 5 rares,
+    rest uncommon/common", enforced across spells, lands *and* commander),
+    max mana value, land-count override, and a specific **theme focus**
+- **Manual deck builder** — pick any format, browse every playable card with
+  fuzzy rules-text search (words match in any order), filter by color, type
+  and mana value, tap to add/remove with copy limits enforced, set a
+  commander, add basics, watch live legality and the wildcard cost, then save
+  or copy straight to Arena. Any generated deck can be opened in the builder
+  for hand-tuning via its **Edit** button.
 - **Card browser** — search by name/text, filter by color, type and mana value,
   with full card art and a high-res close-up on click.
 - **Deck view** — mana curve, color-pip requirements, rarity/wildcard cost,

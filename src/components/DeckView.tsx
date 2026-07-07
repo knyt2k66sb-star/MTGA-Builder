@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Card, Color } from '../types/card';
-import { isCreature, isLand, isPlaneswalker } from '../types/card';
+import { FORMAT_LABELS, isCreature, isLand, isPlaneswalker } from '../types/card';
 import type { DeckEntry } from '../types/deck';
 import { validateDeck } from '../engine';
 import { useIsDeckSaved, useStore } from '../store/useStore';
@@ -38,11 +38,12 @@ function EntryRow({ entry, onClick }: { entry: DeckEntry; onClick: () => void })
   );
 }
 
-export function DeckView() {
+export function DeckView({ onEditInBuilder }: { onEditInBuilder?: () => void }) {
   const deck = useStore((s) => s.deck);
   const diagnostics = useStore((s) => s.diagnostics);
   const setPreviewCard = useStore((s) => s.setPreviewCard);
   const saveCurrentDeck = useStore((s) => s.saveCurrentDeck);
+  const builderLoadDeck = useStore((s) => s.builderLoadDeck);
   const isSaved = useIsDeckSaved(deck);
 
   const issues = useMemo(() => (deck ? validateDeck(deck) : []), [deck]);
@@ -71,11 +72,23 @@ export function DeckView() {
         <div>
           <div className="font-display text-lg font-semibold text-parchment-100">{deck.name}</div>
           <div className="text-xs text-parchment-400">
-            {deck.format === 'brawl' ? 'Standard Brawl' : 'Standard'} · {diagnostics.totalCards} cards
+            {FORMAT_LABELS[deck.format]} · {diagnostics.totalCards} cards
             {deck.seed != null && <> · seed {deck.seed}</>}
           </div>
         </div>
         <div className="flex gap-1.5">
+          {onEditInBuilder && (
+            <button
+              onClick={() => {
+                builderLoadDeck(deck);
+                onEditInBuilder();
+              }}
+              className="btn-ghost"
+              title="Open this deck in the manual deck builder"
+            >
+              🛠 Edit
+            </button>
+          )}
           <button
             onClick={saveCurrentDeck}
             className={`btn-ghost ${isSaved ? 'ring-1 ring-emerald-500 text-emerald-300' : ''}`}
@@ -107,7 +120,7 @@ export function DeckView() {
         </div>
       ) : (
         <div className="border-b border-gold-800/40 p-2 text-center text-xs font-display tracking-wide text-emerald-400">
-          ✓ Legal for {deck.format === 'brawl' ? 'Standard Brawl' : 'Standard'}
+          ✓ Legal for {FORMAT_LABELS[deck.format]}
           {warnings.length > 0 && <span className="text-amber-400"> · {warnings.length} note(s)</span>}
         </div>
       )}

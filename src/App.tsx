@@ -5,16 +5,18 @@ import { Filters } from './components/Filters';
 import { CardGrid } from './components/CardGrid';
 import { DeckView } from './components/DeckView';
 import { DeckGallery } from './components/DeckGallery';
+import { DeckBuilder } from './components/DeckBuilder';
 import { ExportImportModal } from './components/ExportImportModal';
 import { CardPreview } from './components/CardPreview';
 import { PoolBadge } from './components/PoolBadge';
 import { useStore } from './store/useStore';
 
-type Tab = 'results' | 'deck' | 'browse';
+type Tab = 'results' | 'deck' | 'builder' | 'browse';
 
 const TAB_LABELS: Record<Tab, string> = {
   results: 'Deck Gallery',
   deck: 'Current Deck',
+  builder: 'Deck Builder',
   browse: 'Browse Cards',
 };
 
@@ -92,7 +94,7 @@ export default function App() {
         {/* Main */}
         <main className="flex min-w-0 flex-1 flex-col p-2 sm:p-3">
           <div className="mb-3 flex flex-wrap gap-1.5">
-            {(['results', 'deck', 'browse'] as const).map((t) => (
+            {(['results', 'deck', 'builder', 'browse'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -112,7 +114,8 @@ export default function App() {
 
           <div className="min-h-0 flex-1">
             {tab === 'results' && <DeckGallery onOpen={() => setTab('deck')} />}
-            {tab === 'deck' && <DeckView />}
+            {tab === 'deck' && <DeckView onEditInBuilder={() => setTab('builder')} />}
+            {tab === 'builder' && <DeckBuilder />}
             {tab === 'browse' && (
               <div className="flex h-full flex-col gap-3">
                 <Filters />

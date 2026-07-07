@@ -69,7 +69,7 @@ export function SavedDecks() {
                 ))}
               </div>
               <span className="shrink-0 rounded bg-wood-800 px-1.5 py-0.5 font-display text-[10px] uppercase tracking-wide text-parchment-300 ring-1 ring-gold-800/40">
-                {d.format === 'brawl' ? 'Brawl' : 'Std'}
+                {d.format === 'standard' ? 'Std' : d.format === 'standardbrawl' ? 'S.Brawl' : 'Brawl'}
               </span>
               <button
                 onClick={() => deleteSavedDeck(d.id)}
