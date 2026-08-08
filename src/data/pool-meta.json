@@ -1,7 +1,7 @@
 {
-  "updated": "2026-08-07T11:55:15.023Z",
-  "count": 4711,
-  "brawlExtraCount": 10066,
+  "updated": "2026-08-08T11:36:40.496Z",
+  "count": 4899,
+  "brawlExtraCount": 10065,
   "sets": [
     "AFR",
     "BIG",
@@ -13,6 +13,7 @@
     "EOE",
     "FDN",
     "FIN",
+    "HOB",
     "HOC",
     "JMP",
     "LCI",
