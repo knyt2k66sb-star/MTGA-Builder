@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-09T17:27:16.172Z",
+  "updated": "2026-10-10T16:10:57.505Z",
   "count": 5179,
   "brawlExtraCount": 10107,
   "sets": [
@@ -19,6 +19,7 @@
     "JMP",
     "LCI",
     "M19",
+    "MDD",
     "MKM",
     "MOM",
     "MSC",
